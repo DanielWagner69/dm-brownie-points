@@ -1,9 +1,10 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Link2, PawPrint, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Link2, LogOut, PawPrint, Sparkles } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { RedirectToSignIn } from "@/lib/auth/gates";
+import { signOut } from "@/lib/auth/client";
 import { useQuery } from "@tanstack/react-query";
 import {
   createInvite,
@@ -23,6 +24,8 @@ export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
 });
 
+type StepId = "profile" | "pairing" | "preferences";
+
 function OnboardingPage() {
   const { user, isPending } = useCurrentUserState();
   const nav = useNavigate();
@@ -33,7 +36,7 @@ function OnboardingPage() {
     refetchInterval: 3000,
   });
 
-  const [step, setStep] = useState<"profile" | "preferences" | "pairing">("profile");
+  const [step, setStep] = useState<StepId>("profile");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [nickname, setNickname] = useState("");
@@ -41,14 +44,15 @@ function OnboardingPage() {
   const [invite, setInvite] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ratings, setRatings] = useState<Record<number, number>>({});
+  /** After first hydrate from server, don’t force-step on every poll (allows Back). */
+  const hydratedStep = useRef(false);
 
-  // All hooks must run before any conditional return (avoids React error #300).
   const steps = useMemo(
     () =>
       [
-        { id: "profile", label: "You" },
-        { id: "pairing", label: "Pair" },
-        { id: "preferences", label: "Taste" },
+        { id: "profile" as const, label: "You" },
+        { id: "pairing" as const, label: "Pair" },
+        { id: "preferences" as const, label: "Taste" },
       ] as const,
     [],
   );
@@ -58,14 +62,21 @@ function OnboardingPage() {
     setName(me.data.profile.display_name || me.data.authName || "");
     setBio(me.data.profile.bio || "");
     setNickname(me.data.profile.partner_nickname || "");
-    const s = me.data.profile.onboarding_step;
-    if (s === "preferences" || s === "pairing" || s === "profile") setStep(s);
     if (me.data.couple && !me.data.couple.user_b) {
       setInvite(me.data.couple.invite_code);
-      setStep("pairing");
     }
     if (me.data.couple?.user_b && me.data.profile.onboarding_step === "done") {
       void nav({ to: "/app" });
+      return;
+    }
+    if (!hydratedStep.current) {
+      hydratedStep.current = true;
+      const s = me.data.profile.onboarding_step;
+      if (s === "preferences" || s === "pairing" || s === "profile") {
+        setStep(s);
+      } else if (me.data.couple && !me.data.couple.user_b) {
+        setStep("pairing");
+      }
     }
   }, [me.data, nav]);
 
@@ -90,6 +101,36 @@ function OnboardingPage() {
   if (!user) return <RedirectToSignIn />;
   if (me.data?.couple?.user_b && me.data.profile.onboarding_step === "done") {
     return <Navigate to="/app" />;
+  }
+
+  const stepOrder: StepId[] = ["profile", "pairing", "preferences"];
+  const stepIndex = stepOrder.indexOf(step);
+
+  function goBack() {
+    if (step === "preferences") {
+      setStep("pairing");
+      return;
+    }
+    if (step === "pairing") {
+      setStep("profile");
+      return;
+    }
+  }
+
+  function goToStep(target: StepId) {
+    const targetIdx = stepOrder.indexOf(target);
+    // Only allow going back (or staying), not skipping ahead past current progress
+    if (targetIdx <= stepIndex) setStep(target);
+  }
+
+  async function switchAccount() {
+    try {
+      await signOut();
+      toast.message("Signed out — you can use a different email");
+      void nav({ to: "/login" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not sign out");
+    }
   }
 
   async function saveProfile() {
@@ -168,37 +209,77 @@ function OnboardingPage() {
     }
   }
 
+  const accountLabel = user.email || user.name || "this account";
+
   return (
     <main className="paw-bg mx-auto min-h-dvh w-full max-w-lg px-4 py-6">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/15 text-primary">
-          <PawPrint className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Soft setup
-          </p>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Let’s set up your shared little world of Brownie Points
-          </h1>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {step !== "profile" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={goBack}
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          ) : (
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/15 text-primary">
+              <PawPrint className="h-5 w-5" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              Soft setup
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight">
+              Let’s set up your shared little world of Brownie Points
+            </h1>
+          </div>
         </div>
       </div>
 
-      <div className="mb-5 flex gap-2">
-        {steps.map((s) => (
-          <div
-            key={s.id}
-            className={cn(
-              "h-1.5 flex-1 rounded-full transition-colors",
-              step === s.id ||
-                (step === "preferences" && s.id !== "preferences" && me.data?.couple) ||
-                (step === "pairing" && s.id === "profile")
-                ? "bg-primary"
-                : "bg-muted",
-            )}
-          />
-        ))}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card/80 px-3 py-2.5">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Signed in as</p>
+          <p className="truncate text-sm font-medium">{accountLabel}</p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => void switchAccount()}>
+          <LogOut className="h-3.5 w-3.5" />
+          Change account
+        </Button>
       </div>
+
+      <div className="mb-5 flex gap-2">
+        {steps.map((s, i) => {
+          const active = step === s.id;
+          const reachable = i <= stepIndex;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              disabled={!reachable}
+              onClick={() => goToStep(s.id)}
+              className={cn(
+                "h-1.5 flex-1 rounded-full transition-colors",
+                active || reachable ? "bg-primary" : "bg-muted",
+                reachable && !active ? "opacity-60 hover:opacity-100" : "",
+                !reachable ? "cursor-default" : "cursor-pointer",
+              )}
+              aria-label={`Go to ${s.label}`}
+              title={reachable ? s.label : undefined}
+            />
+          );
+        })}
+      </div>
+      <p className="mb-4 text-center text-xs text-muted-foreground">
+        Step {stepIndex + 1} of {steps.length}
+        {step !== "profile" ? " · Back anytime" : " · Wrong email? Change account above"}
+      </p>
 
       {step === "profile" && (
         <Card>
@@ -239,6 +320,14 @@ function OnboardingPage() {
             <Button className="w-full" disabled={busy} onClick={() => void saveProfile()}>
               Continue
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => void switchAccount()}
+            >
+              Wrong account? Sign out and use another email
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -252,13 +341,16 @@ function OnboardingPage() {
                 Invite your person
               </CardTitle>
               <CardDescription>
-                Create a private invite code. Only one partner can join. Shared Brownie Points stay between you two.
+                Create a private invite code. Only one partner can join. Shared Brownie Points stay
+                between you two.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {invite ? (
                 <div className="rounded-2xl border border-border bg-muted/50 p-4 text-center">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Invite code</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Invite code
+                  </p>
                   <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.2em] text-primary">
                     {invite}
                   </p>
@@ -311,11 +403,17 @@ function OnboardingPage() {
             </CardContent>
           </Card>
 
-          {me.data?.couple ? (
-            <Button variant="ghost" className="w-full" onClick={() => setStep("preferences")}>
-              Rate preferences next
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" className="w-full" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to profile
             </Button>
-          ) : null}
+            {me.data?.couple ? (
+              <Button variant="ghost" className="w-full" onClick={() => setStep("preferences")}>
+                Rate preferences next
+              </Button>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -366,6 +464,10 @@ function OnboardingPage() {
               onClick={() => void savePrefs()}
             >
               Save taste & continue
+            </Button>
+            <Button variant="outline" className="w-full" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to pairing
             </Button>
           </CardContent>
         </Card>
