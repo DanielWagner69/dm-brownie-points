@@ -1,4 +1,4 @@
-export type ThemeId = "warm" | "dusk" | "blossom";
+export type ThemeId = "warm" | "dusk" | "blossom" | "burgundy" | "flight";
 
 export type Profile = {
   user_id: string;

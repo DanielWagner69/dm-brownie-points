@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LogOut, Moon, Sun, Flower2 } from "lucide-react";
+import { Flower2, Grape, LogOut, Moon, Plane, Sun } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,10 +64,12 @@ function SettingsPage() {
 
   if (!d || !prefs) return null;
 
-  const themes: { id: ThemeId; label: string; icon: typeof Sun }[] = [
-    { id: "warm", label: "Warm cream", icon: Sun },
-    { id: "dusk", label: "Soft dusk", icon: Moon },
-    { id: "blossom", label: "Blossom", icon: Flower2 },
+  const themes: { id: ThemeId; label: string; swatch: string; icon: typeof Sun }[] = [
+    { id: "warm", label: "Warm cream", swatch: "#b56b4a", icon: Sun },
+    { id: "dusk", label: "Soft dusk", swatch: "#d4926e", icon: Moon },
+    { id: "blossom", label: "Blossom", swatch: "#a65d72", icon: Flower2 },
+    { id: "burgundy", label: "Burgundy", swatch: "#8b1e3f", icon: Grape },
+    { id: "flight", label: "Flight teal", swatch: "#5ed4c8", icon: Plane },
   ];
 
   return (
@@ -111,9 +113,9 @@ function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Theme</CardTitle>
-            <CardDescription>Warm by default — dusk for late-night soft chats.</CardDescription>
+            <CardDescription>Warm cream by default. Burgundy for deep wine vibes; Flight teal from that mint-on-deep-teal look.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-2">
+          <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {themes.map((t) => {
               const Icon = t.icon;
               const active = d.profile.theme === t.id;
@@ -127,13 +129,18 @@ function SettingsPage() {
                     invalidate();
                   }}
                   className={cn(
-                    "flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-3 text-xs font-medium",
+                    "flex min-h-[80px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-medium",
                     active
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-surface text-muted-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <span
+                    className="h-4 w-4 rounded-full ring-2 ring-border"
+                    style={{ background: t.swatch }}
+                    aria-hidden
+                  />
+                  <Icon className="h-3.5 w-3.5 opacity-80" />
                   {t.label}
                 </button>
               );

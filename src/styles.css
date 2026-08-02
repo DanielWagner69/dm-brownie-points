@@ -91,6 +91,48 @@
   --danger-fg: #fff9fa;
 }
 
+/* Burgundy — deep wine + soft blush */
+[data-theme="burgundy"] {
+  --bg: #1a0f12;
+  --surface: #241618;
+  --card: #2e1c20;
+  --fg: #f8ecee;
+  --fg-muted: #c4a0a8;
+  --muted-bg: #3a242a;
+  --border: color-mix(in oklab, #f8ecee 12%, transparent);
+  --primary: #8b1e3f;
+  --primary-fg: #fff5f7;
+  --secondary: #3a242a;
+  --secondary-fg: #f8ecee;
+  --accent: #c45c7a;
+  --accent-fg: #1a0f12;
+  --ring: #c45c7a;
+  --positive: #6db890;
+  --danger: #e07a7a;
+  --danger-fg: #1a0f12;
+}
+
+/* Flight — deep teal + mint accents (from the Flight Crowd palette) */
+[data-theme="flight"] {
+  --bg: #0a3d42;
+  --surface: #0f4a50;
+  --card: #14555c;
+  --fg: #e8f7f6;
+  --fg-muted: #9ecbc8;
+  --muted-bg: #1a5f66;
+  --border: color-mix(in oklab, #e8f7f6 14%, transparent);
+  --primary: #5ed4c8;
+  --primary-fg: #063238;
+  --secondary: #1a5f66;
+  --secondary-fg: #e8f7f6;
+  --accent: #7ee0d6;
+  --accent-fg: #063238;
+  --ring: #5ed4c8;
+  --positive: #8ef0a8;
+  --danger: #ff8f9a;
+  --danger-fg: #2a0a10;
+}
+
 @layer base {
   * {
     border-color: var(--border);
