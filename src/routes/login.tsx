@@ -84,8 +84,9 @@ function LoginPage() {
           </div>
           <CardTitle className="text-2xl tracking-tight">Welcome to Pawmise</CardTitle>
           <CardDescription className="text-base leading-relaxed">
-            A private little world of Brownie Points for two. Soft accountability, zero therapy vibes
-            — just noticing each other’s effort.
+            A private little world of Brownie Points for two. Recognizing the big
+            and little things in life and showing appreciation.
+
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
