@@ -206,49 +206,24 @@ const NAUGHTY: Record<string, string> = {
   Back: "Back",
 };
 
-/**
- * Negative actions in Naughty mode — confession / church-of-bad-decisions energy.
- * Weighted so “Forgive me father…” shows up a lot.
- */
+/** Extra flair for negative action names when Naughty is on */
 const SIN_PREFIXES = [
   "Forgive me father, for I have sinned: ",
-  "Forgive me father, for I have sinned: ",
-  "Forgive me father, for I have sinned: ",
-  "Forgive me father, for I have sinned: ",
-  "Confession booth: ",
-  "Mea culpa, baby: ",
-  "Bless me father, for I fucked up: ",
-  "Sin of the day: ",
-  "I have sinned and I loved it: ",
-  "Oops, hellbound moment: ",
-  "Lord have mercy: ",
-  "Penance pending: ",
-  "Guilty as charged: ",
-  "Forgive me darling, for I have sinned: ",
+  "Confession: ",
+  "Mea culpa — ",
+  "Oops, I did a bad: ",
+  "Sin logged: ",
 ];
 
 const BLESSING_PREFIXES = [
   "Blessing: ",
-  "Halo moment: ",
   "Saint behaviour: ",
+  "Halo moment: ",
   "Good fucking deed: ",
-  "Heaven points: ",
-  "Angel mode: ",
 ];
 
-/** Resolve theme from profile, with DOM data-theme as fallback (instant after switch). */
-export function resolveTheme(
-  theme: ThemeId | string | null | undefined,
-): string | null | undefined {
-  if (theme) return theme;
-  if (typeof document !== "undefined") {
-    return document.documentElement.getAttribute("data-theme");
-  }
-  return theme;
-}
-
 export function isNaughtyTheme(theme: ThemeId | string | null | undefined): boolean {
-  return resolveTheme(theme) === "naughty";
+  return theme === "naughty";
 }
 
 /** Apply naughty tone to a string when the theme is naughty. */
@@ -262,6 +237,7 @@ export function tone(text: string, theme: ThemeId | string | null | undefined): 
       out = out.split(plain).join(naughty);
     }
   }
+  // Soft replace remaining “Brownie Points” → Fuck fund in long strings
   if (out.includes("Brownie Points")) {
     out = out.split("Brownie Points").join("Fuck fund");
   }
@@ -282,25 +258,23 @@ export function toneActionName(
   stableKey?: string | number,
 ): string {
   if (!isNaughtyTheme(theme)) return name;
-
-  // Strip any old flavour if re-applied
-  let base = name;
-  for (const p of [...SIN_PREFIXES, ...BLESSING_PREFIXES]) {
-    if (base.startsWith(p)) {
-      base = base.slice(p.length);
-      break;
-    }
+  // Already flavoured
+  if (
+    name.startsWith("Forgive me father") ||
+    name.startsWith("Confession:") ||
+    name.startsWith("Blessing:") ||
+    name.startsWith("Mea culpa")
+  ) {
+    return name;
   }
-
-  const seed = String(stableKey ?? base)
+  const seed = String(stableKey ?? name)
     .split("")
     .reduce((a, c) => a + c.charCodeAt(0), 0);
-
   if (kind === "negative") {
-    return SIN_PREFIXES[seed % SIN_PREFIXES.length] + base;
+    return SIN_PREFIXES[seed % SIN_PREFIXES.length] + name;
   }
   if (kind === "positive") {
-    return BLESSING_PREFIXES[seed % BLESSING_PREFIXES.length] + base;
+    return BLESSING_PREFIXES[seed % BLESSING_PREFIXES.length] + name;
   }
-  return base;
+  return name;
 }
