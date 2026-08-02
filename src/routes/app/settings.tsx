@@ -21,6 +21,7 @@ import { downloadText } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ThemeId } from "@/lib/paws/types";
+import { tone } from "@/lib/paws/tone";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/settings")({
@@ -77,34 +78,37 @@ function SettingsPage() {
 
   if (!d || !prefs) return null;
 
+  const theme = d.profile.theme;
+  const t = (s: string) => tone(s, theme);
+
   const themes: { id: ThemeId; label: string; swatch: string; icon: typeof Sun }[] = [
     { id: "warm", label: "Warm cream", swatch: "#b56b4a", icon: Sun },
     { id: "dusk", label: "Soft dusk", swatch: "#d4926e", icon: Moon },
     { id: "blossom", label: "Blossom", swatch: "#a65d72", icon: Flower2 },
     { id: "burgundy", label: "Burgundy", swatch: "#8b1e3f", icon: Grape },
     { id: "flight", label: "Flight teal", swatch: "#5ed4c8", icon: Plane },
-    { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame },
+    { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame }, // label toned below
   ];
 
   return (
-    <AppShell title="Nest settings" subtitle="Themes, taste, pairing">
+    <AppShell title={t("Nest settings")} subtitle={t("Themes, taste, pairing")}>
       <div className="space-y-4 pb-6">
         <Card id="profile">
           <CardHeader>
-            <CardTitle className="text-base">Profile</CardTitle>
-            <CardDescription>Change your display name, nickname, and bio anytime.</CardDescription>
+            <CardTitle className="text-base">{t("Profile")}</CardTitle>
+            <CardDescription>{t("Change your display name, nickname, and bio anytime.")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
-              <Label>Display name</Label>
+              <Label>{t("Display name")}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Partner nickname</Label>
+              <Label>{t("Partner nickname")}</Label>
               <Input value={nick} onChange={(e) => setNick(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Bio</Label>
+              <Label>{t("Bio")}</Label>
               <Textarea value={bio} onChange={(e) => setBio(e.target.value)} />
             </div>
             <Button
@@ -120,27 +124,27 @@ function SettingsPage() {
                 invalidate();
               }}
             >
-              Save profile
+              {t("Save profile")}
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Theme</CardTitle>
-            <CardDescription>Warm cream by default. Naughty adds flirty puns across the app (still private to you two).</CardDescription>
+            <CardTitle className="text-base">{t("Theme")}</CardTitle>
+            <CardDescription>{t("Warm cream by default. Naughty adds flirty puns across the app (still private to you two).")}</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {themes.map((t) => {
-              const Icon = t.icon;
-              const active = d.profile.theme === t.id;
+            {themes.map((tm) => {
+              const Icon = tm.icon;
+              const active = d.profile.theme === tm.id;
               return (
                 <button
-                  key={t.id}
+                  key={tm.id}
                   type="button"
                   onClick={async () => {
-                    await updateProfile({ data: { theme: t.id } });
-                    document.documentElement.setAttribute("data-theme", t.id);
+                    await updateProfile({ data: { theme: tm.id } });
+                    document.documentElement.setAttribute("data-theme", tm.id);
                     invalidate();
                   }}
                   className={cn(
@@ -152,11 +156,11 @@ function SettingsPage() {
                 >
                   <span
                     className="h-4 w-4 rounded-full ring-2 ring-border"
-                    style={{ background: t.swatch }}
+                    style={{ background: tm.swatch }}
                     aria-hidden
                   />
                   <Icon className="h-3.5 w-3.5 opacity-80" />
-                  {t.label}
+                  {t(tm.label)}
                 </button>
               );
             })}
@@ -207,7 +211,7 @@ function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">All actions & ratings</CardTitle>
+            <CardTitle className="text-base">{t("All actions & ratings")}</CardTitle>
             <CardDescription>
               Full default list plus your custom ones (same as Log). Ratings only affect future suggestions when actions apply to you.
             </CardDescription>
@@ -275,14 +279,14 @@ function SettingsPage() {
                 toast.success("Taste updated");
               }}
             >
-              Save ratings
+              {t("Save ratings")}
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Custom action</CardTitle>
+            <CardTitle className="text-base">{t("Custom action")}</CardTitle>
             <CardDescription>Add something unique to your pair, then archive later if needed.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -331,7 +335,7 @@ function SettingsPage() {
                 invalidate();
               }}
             >
-              Add action
+              {t("Add action")}
             </Button>
           </CardContent>
         </Card>

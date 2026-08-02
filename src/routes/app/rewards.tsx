@@ -17,6 +17,7 @@ import {
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { Reward } from "@/lib/paws/types";
 import { cn } from "@/lib/utils";
+import { tone } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/rewards")({
   component: RewardsPage,
@@ -53,6 +54,8 @@ function RewardsPage() {
   );
 
   const pendingClaims = dash.data?.pendingClaims ?? [];
+  const theme = dash.data?.profile.theme;
+  const t = (s: string) => tone(s, theme);
 
   function resetForm() {
     setName("");
@@ -88,7 +91,7 @@ function RewardsPage() {
           point_cost: kind === "wishlist" ? pointNum : undefined,
         },
       });
-      toast.success(editing ? "Updated softly" : tab === "treats" ? "Treat added" : "Wish added");
+      toast.success(t(editing ? "Updated softly" : tab === "treats" ? "Treat added" : "Wish added"));
       resetForm();
       invalidate();
     } catch (e) {
@@ -101,7 +104,7 @@ function RewardsPage() {
       await upsertReward({
         data: { id: r.id, name: r.name, archive: true },
       });
-      toast.success("Removed from your list");
+      toast.success(t("Removed from your list"));
       invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not remove");
@@ -110,21 +113,21 @@ function RewardsPage() {
 
   return (
     <AppShell
-      title="Treats & wishlist"
-      subtitle="Gestures you claim · wishes they buy for you"
+      title={t("Treats & wishlist")}
+      subtitle={t("Gestures you claim · wishes they buy for you")}
     >
       <div className="space-y-4">
         <Card>
           <CardContent className="flex items-center justify-between gap-3 p-4">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Brownie Points balance
+                {t("Brownie Points balance")}
               </p>
               <p className="text-2xl font-semibold tabular text-primary">
                 {dash.data?.balance.current ?? 0}
               </p>
               <p className="text-xs text-muted-foreground">
-                Accepted positive + negative − spent on treats
+                {t("Accepted positive + negative − spent on treats")}
               </p>
             </div>
             <Button
@@ -245,7 +248,7 @@ function RewardsPage() {
         {pendingClaims.length > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Needs a soft yes / no</CardTitle>
+              <CardTitle className="text-base">{t("Needs a soft yes / no")}</CardTitle>
               <CardDescription>Approve treats or confirm wishlist purchases.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -269,7 +272,7 @@ function RewardsPage() {
                       onClick={async () => {
                         try {
                           await resolveClaim({ data: { id: cl.id, decision: "approve" } });
-                          toast.success("Approved");
+                          toast.success(t("Approved"));
                           invalidate();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Failed");
@@ -284,7 +287,7 @@ function RewardsPage() {
                       onClick={async () => {
                         try {
                           await resolveClaim({ data: { id: cl.id, decision: "cancel" } });
-                          toast.message("Cancelled — Brownie Points refunded if needed");
+                          toast.message(t("Cancelled — Brownie Points refunded if needed"));
                           invalidate();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Failed");
@@ -302,7 +305,7 @@ function RewardsPage() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">
-            Your {tab === "treats" ? "treats" : "wishlist"}
+            {t(tab === "treats" ? "Your treats" : "Your wishlist")}
           </h2>
           {mine.map((r) => (
             <RewardCard
@@ -310,12 +313,13 @@ function RewardsPage() {
               r={r}
               mode="mine"
               tab={tab}
+              t={t}
               onEdit={() => startEdit(r)}
               onRemove={() => void removeItem(r)}
               onClaim={async () => {
                 try {
                   await claimReward({ data: { reward_id: r.id } });
-                  toast.success("Claimed — waiting for partner approval");
+                  toast.success(t("Claimed — waiting for partner approval"));
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Claim failed");
@@ -326,7 +330,7 @@ function RewardsPage() {
                   await upsertReward({
                     data: { id: r.id, name: r.name, point_cost: v },
                   });
-                  toast.success("Buy Brownie Points updated");
+                  toast.success(t("Buy Brownie Points updated"));
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -345,7 +349,7 @@ function RewardsPage() {
 
         <section className="space-y-2 pb-6">
           <h2 className="text-sm font-semibold">
-            Their {tab === "treats" ? "treats" : "wishlist"}
+            {t(tab === "treats" ? "Their treats" : "Their wishlist")}
           </h2>
           <p className="text-xs text-muted-foreground">
             {tab === "treats"
@@ -358,12 +362,13 @@ function RewardsPage() {
               r={r}
               mode="theirs"
               tab={tab}
+              t={t}
               onSetTreatCost={async (v) => {
                 try {
                   await upsertReward({
                     data: { id: r.id, name: r.name, point_cost: v },
                   });
-                  toast.success("Brownie Points cost set");
+                  toast.success(t("Brownie Points cost set"));
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -372,7 +377,7 @@ function RewardsPage() {
               onBuy={async () => {
                 try {
                   await buyWishlistItem({ data: { reward_id: r.id } });
-                  toast.success("Sent for their confirmation — Brownie Points after they say yes");
+                  toast.success(t("Sent for their confirmation — Brownie Points after they say yes"));
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -393,6 +398,7 @@ function RewardCard({
   r,
   mode,
   tab,
+  t = (s) => s,
   onEdit,
   onRemove,
   onClaim,
@@ -403,6 +409,7 @@ function RewardCard({
   r: Reward;
   mode: "mine" | "theirs";
   tab: Tab;
+  t?: (s: string) => string;
   onEdit?: () => void;
   onRemove?: () => void;
   onClaim?: () => void;
@@ -442,7 +449,7 @@ function RewardCard({
           <>
             {tab === "treats" ? (
               <Button size="sm" disabled={r.point_cost == null} onClick={onClaim}>
-                Claim treat
+                {t("Claim treat")}
               </Button>
             ) : (
               <div className="flex items-center gap-2">
@@ -492,7 +499,7 @@ function RewardCard({
                 : `They earn ${r.point_cost} Brownie Points if you buy this`}
             </Badge>
             <Button size="sm" variant="secondary" disabled={r.point_cost == null} onClick={onBuy}>
-              I bought this
+              {t("I bought this")}
             </Button>
           </div>
         )}
