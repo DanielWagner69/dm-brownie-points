@@ -84,7 +84,7 @@ function LoginPage() {
           </div>
           <CardTitle className="text-2xl tracking-tight">Welcome to Pawmise</CardTitle>
           <CardDescription className="text-base leading-relaxed">
-            A private little world of brownie points for two. Soft accountability, zero therapy vibes
+            A private little world of Brownie Points for two. Soft accountability, zero therapy vibes
             — just noticing each other’s effort.
           </CardDescription>
         </CardHeader>
@@ -166,7 +166,7 @@ function LoginPage() {
             </p>
           ) : null}
           <p className="pt-1 text-center text-xs leading-relaxed text-muted-foreground">
-            Only you and your person will ever see your shared notebook. One couple. Private paws.
+            Only you and your person will ever see your shared notebook. One couple. Private Brownie Points.
             Each of you creates your own email account, then pairs with a paw-code.
           </p>
           <p className="text-center text-[10px] text-muted-foreground/80">Email sign-in only · v3</p>

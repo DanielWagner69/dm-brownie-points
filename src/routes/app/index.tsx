@@ -50,7 +50,7 @@ function HomePage() {
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  Your care balance
+                  Brownie Points balance
                 </p>
                 <p
                   className={`mt-1 text-4xl font-semibold tracking-tight tabular ${
@@ -60,8 +60,8 @@ function HomePage() {
                   {formatPoints(d.balance.current)}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Warmth {formatPoints(d.balance.lifetime_positive)} · Oopsies{" "}
-                  {d.balance.lifetime_negative} · Spent {d.balance.points_spent}
+                  Positive {formatPoints(d.balance.lifetime_positive)} · Negative{" "}
+                  {d.balance.lifetime_negative} · Spent {d.balance.points_spent} BP
                 </p>
               </div>
               <div className="rounded-2xl bg-primary/10 px-3 py-2 text-center">
@@ -76,7 +76,7 @@ function HomePage() {
                 <span className="font-medium text-foreground tabular">
                   {formatPoints(d.partnerBalance.current)}
                 </span>{" "}
-                paws — not a scoreboard, just a soft mirror.
+                Brownie Points — not a scoreboard, just a soft mirror.
               </p>
             ) : null}
           </CardContent>
@@ -137,7 +137,7 @@ function HomePage() {
                       size="sm"
                       variant="secondary"
                       onClick={async () => {
-                        const pts = window.prompt("New points?", String(a.points));
+                        const pts = window.prompt("New Brownie Points?", String(a.points));
                         if (pts == null) return;
                         try {
                           await reviewAction({
@@ -196,7 +196,7 @@ function HomePage() {
                   <div>
                     <p className="text-sm font-medium">{c.reward_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {c.claimer_name} · {c.points_spent} paws
+                      {c.claimer_name} · {c.points_spent} Brownie Points
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -248,7 +248,7 @@ function HomePage() {
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Recent paws</CardTitle>
+            <CardTitle className="text-base">Recent Brownie Points</CardTitle>
             <Button asChild size="sm" variant="ghost">
               <Link to="/app/history">Full story</Link>
             </Button>
@@ -256,7 +256,7 @@ function HomePage() {
           <CardContent className="space-y-2">
             {d.recent.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nothing logged yet. Go leave a little pawprint.
+                Nothing logged yet. Go log a little Brownie Point.
               </p>
             ) : (
               d.recent.slice(0, 6).map((a) => (
@@ -306,7 +306,7 @@ function HomePage() {
           <Button asChild className="h-14">
             <Link to="/app/log">
               <PawPrint className="h-4 w-4" />
-              Log a paw
+              Log Brownie Points
             </Link>
           </Button>
           <Button asChild variant="secondary" className="h-14">

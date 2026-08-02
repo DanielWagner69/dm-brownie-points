@@ -22,12 +22,12 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       {
-        title: "Pawmise — soft little paw-points for two",
+        title: "Pawmise — Brownie Points for two",
       },
       {
         name: "description",
         content:
-          "A private, playful notebook for couples to notice each other’s effort — brownie points with bulochka energy.",
+          "A private, playful notebook for couples to notice each other’s effort — Brownie Points with bulochka energy.",
       },
       { name: "theme-color", content: "#b56b4a" },
       { name: "apple-mobile-web-app-capable", content: "yes" },

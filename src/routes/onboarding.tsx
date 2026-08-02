@@ -133,7 +133,7 @@ function OnboardingPage() {
     setBusy(true);
     try {
       await joinWithCode({ data: joinCode.trim().toUpperCase() });
-      toast.success("Paws linked — welcome to your shared little world");
+      toast.success("Linked — welcome to your shared Brownie Points nest");
       setStep("preferences");
       await me.refetch();
     } catch (e) {
@@ -179,7 +179,7 @@ function OnboardingPage() {
             Soft setup
           </p>
           <h1 className="text-xl font-semibold tracking-tight">
-            Let’s set up your shared little world of brownie points
+            Let’s set up your shared little world of Brownie Points
           </h1>
         </div>
       </div>
@@ -252,13 +252,13 @@ function OnboardingPage() {
                 Invite your person
               </CardTitle>
               <CardDescription>
-                Create a private paw-code. Only one partner can join. Shared data stays between you two.
+                Create a private invite code. Only one partner can join. Shared Brownie Points stay between you two.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {invite ? (
                 <div className="rounded-2xl border border-border bg-muted/50 p-4 text-center">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Paw-code</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Invite code</p>
                   <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.2em] text-primary">
                     {invite}
                   </p>
@@ -306,7 +306,7 @@ function OnboardingPage() {
                 disabled={busy || joinCode.length < 6}
                 onClick={() => void join()}
               >
-                {busy ? "Linking paws…" : "Join little world"}
+                {busy ? "Linking…" : "Join little world"}
               </Button>
             </CardContent>
           </Card>

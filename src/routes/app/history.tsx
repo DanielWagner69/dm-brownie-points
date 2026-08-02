@@ -166,7 +166,7 @@ function HistoryPage() {
                       size="sm"
                       variant="secondary"
                       onClick={async () => {
-                        const pts = window.prompt("Edit points", String(a.points));
+                        const pts = window.prompt("Edit Brownie Points", String(a.points));
                         if (pts == null) return;
                         try {
                           await editLoggedAction({

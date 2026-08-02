@@ -118,13 +118,13 @@ function RewardsPage() {
           <CardContent className="flex items-center justify-between gap-3 p-4">
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Spendable balance
+                Brownie Points balance
               </p>
               <p className="text-2xl font-semibold tabular text-primary">
                 {dash.data?.balance.current ?? 0}
               </p>
               <p className="text-xs text-muted-foreground">
-                Accepted warmth + oopsies − spent treats
+                Accepted positive + negative − spent on treats
               </p>
             </div>
             <Button
@@ -173,13 +173,13 @@ function RewardsPage() {
             <>
               <strong className="text-foreground">Treats</strong> are non-money gestures you want
               (back rub, movie night). You list them;{" "}
-              <em>your person sets the paw cost</em>. You claim with your points — they approve.
+              <em>your person sets the Brownie Points cost</em>. You claim with your Brownie Points — they approve.
             </>
           ) : (
             <>
-              <strong className="text-foreground">Wishlist</strong> items (e.g. a vase) have buy-points
+              <strong className="text-foreground">Wishlist</strong> items (e.g. a vase) have buy Brownie Points
               you set. When your person buys it and you confirm,{" "}
-              <em>they earn those paws</em>.
+              <em>they earn those Brownie Points</em>.
             </>
           )}
         </p>
@@ -193,7 +193,7 @@ function RewardsPage() {
               <CardDescription>
                 {tab === "treats"
                   ? "Something soft you’d love to receive. Partner prices it later."
-                  : "Something they can buy for you — set how many paws they earn."}
+                  : "Something they can buy for you — set how many Brownie Points they earn."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -217,7 +217,7 @@ function RewardsPage() {
               </div>
               {tab === "wishlist" ? (
                 <div className="space-y-2">
-                  <Label>Buy-points (they earn when they buy it)</Label>
+                  <Label>Buy Brownie Points (they earn when they buy it)</Label>
                   <Input
                     type="number"
                     value={points}
@@ -259,7 +259,7 @@ function RewardsPage() {
                     <p className="text-xs text-muted-foreground">
                       {cl.claimer_name ?? "Partner"} ·{" "}
                       {cl.points_spent > 0
-                        ? `spend ${cl.points_spent} paws`
+                        ? `spend ${cl.points_spent} Brownie Points`
                         : "wishlist purchase"}
                     </p>
                   </div>
@@ -284,7 +284,7 @@ function RewardsPage() {
                       onClick={async () => {
                         try {
                           await resolveClaim({ data: { id: cl.id, decision: "cancel" } });
-                          toast.message("Cancelled — paws refunded if needed");
+                          toast.message("Cancelled — Brownie Points refunded if needed");
                           invalidate();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Failed");
@@ -326,7 +326,7 @@ function RewardsPage() {
                   await upsertReward({
                     data: { id: r.id, name: r.name, point_cost: v },
                   });
-                  toast.success("Buy-points updated");
+                  toast.success("Buy Brownie Points updated");
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -349,8 +349,8 @@ function RewardsPage() {
           </h2>
           <p className="text-xs text-muted-foreground">
             {tab === "treats"
-              ? "You set the paw-cost (you’re the one giving the treat)."
-              : "Mark when you’ve bought an item — they confirm, then you earn the paws."}
+              ? "You set the Brownie Points cost (you’re the one giving the treat)."
+              : "Mark when you’ve bought an item — they confirm, then you earn the Brownie Points."}
           </p>
           {theirs.map((r) => (
             <RewardCard
@@ -363,7 +363,7 @@ function RewardsPage() {
                   await upsertReward({
                     data: { id: r.id, name: r.name, point_cost: v },
                   });
-                  toast.success("Paw-cost set");
+                  toast.success("Brownie Points cost set");
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -372,7 +372,7 @@ function RewardsPage() {
               onBuy={async () => {
                 try {
                   await buyWishlistItem({ data: { reward_id: r.id } });
-                  toast.success("Sent for their confirmation — paws after they say yes");
+                  toast.success("Sent for their confirmation — Brownie Points after they say yes");
                   invalidate();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Failed");
@@ -423,11 +423,11 @@ function RewardCard({
             <Badge variant="soft">
               {r.point_cost == null
                 ? tab === "treats"
-                  ? "Awaiting cost"
-                  : "Set buy-points"
+                  ? "Awaiting BP cost"
+                  : "Set buy Brownie Points"
                 : tab === "treats"
-                  ? `${r.point_cost} paws to claim`
-                  : `${r.point_cost} paws earned on buy`}
+                  ? `${r.point_cost} BP to claim`
+                  : `${r.point_cost} BP earned on buy`}
             </Badge>
             {!r.repeatable ? <Badge variant="outline">One-time</Badge> : null}
             {mode === "theirs" && r.created_by_name ? (
@@ -457,7 +457,7 @@ function RewardCard({
                     onSaveWishlistPoints?.(v);
                   }}
                 />
-                <span className="text-xs text-muted-foreground">buy-points</span>
+                <span className="text-xs text-muted-foreground">buy BP</span>
               </div>
             )}
             <Button size="sm" variant="outline" onClick={onEdit}>
@@ -482,14 +482,14 @@ function RewardCard({
                 onSetTreatCost?.(v);
               }}
             />
-            <span className="text-xs text-muted-foreground">paws they spend</span>
+            <span className="text-xs text-muted-foreground">BP they spend</span>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="soft">
               {r.point_cost == null
-                ? "No buy-points set yet"
-                : `They earn ${r.point_cost} paws if you buy this`}
+                ? "No buy Brownie Points set yet"
+                : `They earn ${r.point_cost} Brownie Points if you buy this`}
             </Badge>
             <Button size="sm" variant="secondary" disabled={r.point_cost == null} onClick={onBuy}>
               I bought this

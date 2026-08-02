@@ -10,7 +10,7 @@ const tabs: {
   exact?: boolean;
 }[] = [
   { to: "/app", label: "Home", icon: Home, exact: true },
-  { to: "/app/log", label: "Log", icon: PlusCircle },
+  { to: "/app/log", label: "Log BP", icon: PlusCircle },
   { to: "/app/history", label: "Story", icon: History },
   { to: "/app/rewards", label: "Treats", icon: Gift },
   { to: "/app/settings", label: "Nest", icon: Settings },

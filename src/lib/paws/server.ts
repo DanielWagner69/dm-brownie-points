@@ -216,9 +216,9 @@ function weeklySummaryText(
   recentPos: number,
 ): string {
   return [
-    `${name}, this little week of paws was gentle and real.`,
+    `${name}, this little week of Brownie Points was gentle and real.`,
     `You and ${partner} stacked ${recentPos} soft positives together.`,
-    `Your care balance sits at ${balance.current} paw-points (lifetime warmth ${balance.lifetime_positive}, little oopsies ${balance.lifetime_negative}).`,
+    `Your Brownie Points balance sits at ${balance.current} (lifetime positive ${balance.lifetime_positive}, little oopsies ${balance.lifetime_negative}).`,
     streak > 0
       ? `Your kindness streak is ${streak} day${streak === 1 ? "" : "s"} — bulochka energy is strong.`
       : `A fresh week is waiting for your next tiny pawmise.`,
@@ -358,7 +358,7 @@ export const joinWithCode = createServerFn({ method: "POST" })
       select id, invite_code, user_a, user_b from couples
       where invite_code = ${code} and unpaired_at is null`;
     const c = rows[0];
-    if (!c) throw new Error("That paw-code doesn’t match any little world");
+    if (!c) throw new Error("That invite code doesn’t match any little world");
     if (c.user_a === userId) throw new Error("That’s your own invite, softie");
     if (c.user_b) throw new Error("This pair already has two hearts");
     await sql`update couples set user_b = ${userId} where id = ${c.id} and user_b is null`;
@@ -369,8 +369,8 @@ export const joinWithCode = createServerFn({ method: "POST" })
     }
     const aName = (await getProfile(c.user_a))?.display_name ?? "Your partner";
     const bName = (await getProfile(userId))?.display_name ?? "Your partner";
-    await notify(c.user_a, c.id, "action", "Paws linked", `${bName} joined your little world.`);
-    await notify(userId, c.id, "action", "Paws linked", `You’re paired with ${aName}. Soft mode: on.`);
+    await notify(c.user_a, c.id, "action", "You're paired", `${bName} joined your little world.`);
+    await notify(userId, c.id, "action", "You're paired", `You’re paired with ${aName}. Soft mode: on.`);
     await sql`update profiles set onboarding_step = 'done' where user_id = ${userId}`;
     await sql`update profiles set onboarding_step = 'done' where user_id = ${c.user_a}`;
     return { ok: true, couple_id: c.id };
@@ -512,7 +512,7 @@ export const logAction = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { userId } = context as Ctx;
     const c = await getActiveCouple(userId);
-    if (!c?.user_b) throw new Error("You need a partner paw first");
+    if (!c?.user_b) throw new Error("You need a partner first");
     const partner = partnerIdOf(c, userId)!;
     const applies_to = data.direction === "self" ? userId : partner;
     const sql = await getSql();
@@ -598,7 +598,7 @@ export const logAction = createServerFn({ method: "POST" })
       c.id,
       "action",
       `${logger?.display_name ?? "Your little prince"} logged something`,
-      `${at.name} · ${points > 0 ? "+" : ""}${points} paws${whenNote} — review when you’re ready.`,
+      `${at.name} · ${points > 0 ? "+" : ""}${points} Brownie Points${whenNote} — review when you’re ready.`,
     );
     await updateStreak(userId, c.id);
     await evaluateBadges(userId, c.id);
@@ -687,7 +687,7 @@ export const editLoggedAction = createServerFn({ method: "POST" })
     if (!a) throw new Error("Not found");
     if (a.logged_by !== userId) throw new Error("Only the logger can edit");
     if (new Date(a.editable_until).getTime() < Date.now()) {
-      throw new Error("Edit window closed (24h pawmise)");
+      throw new Error("Edit window closed (24h)");
     }
     if (a.status === "declined") throw new Error("Already declined");
     const points = data.points ?? a.points;
@@ -776,7 +776,7 @@ export const requestDeleteAction = createServerFn({ method: "POST" })
       partner,
       c.id,
       "review",
-      "Delete pawmise needs a second yes",
+      "Delete needs a second yes",
       `${me?.display_name ?? "Partner"} asked to ${data.entry_type === "history_wipe" ? "wipe history" : "delete an entry"}. Open settings to agree.`,
     );
     return { status: "pending" as const };
@@ -824,13 +824,13 @@ export const upsertReward = createServerFn({ method: "POST" })
       if (data.point_cost !== undefined && data.point_cost !== null) {
         if (r.kind === "gesture") {
           if (r.created_by === userId) {
-            throw new Error("Your person sets the paw-cost for your treats");
+            throw new Error("Your person sets the Brownie Points cost for your treats");
           }
           await sql`
             update rewards set point_cost = ${data.point_cost}, cost_set_by = ${userId}
             where id = ${r.id}`;
         } else if (r.created_by !== userId) {
-          throw new Error("Only the wishlist owner sets the buy-points value");
+          throw new Error("Only the wishlist owner sets the buy Brownie Points value");
         } else {
           await sql`
             update rewards set point_cost = ${data.point_cost}, cost_set_by = ${userId}
@@ -888,7 +888,7 @@ export const claimReward = createServerFn({ method: "POST" })
     if (!r) throw new Error("Treat missing");
     if (r.kind !== "gesture") throw new Error("Use Buy for wishlist items");
     if (r.created_by !== userId) throw new Error("You claim treats from your own list");
-    if (r.point_cost == null) throw new Error("Partner hasn’t set a paw-cost yet");
+    if (r.point_cost == null) throw new Error("Partner hasn’t set a Brownie Points cost yet");
     const claimId = id("rc");
     await sql`
       insert into reward_claims (id, reward_id, couple_id, claimed_by, status, points_spent)
@@ -899,7 +899,7 @@ export const claimReward = createServerFn({ method: "POST" })
       c.id,
       "reward",
       `${me?.display_name ?? "Someone soft"} claimed a treat`,
-      `“${r.name}” for ${r.point_cost} paws — approve when it feels right.`,
+      `“${r.name}” for ${r.point_cost} Brownie Points — approve when it feels right.`,
     );
     return { id: claimId };
   });
@@ -958,7 +958,7 @@ export const resolveClaim = createServerFn({ method: "POST" })
           c.id,
           "reward",
           "Wishlist confirmed",
-          `“${claim.reward_name}” is confirmed — you earned ${pts} paws.`,
+          `“${claim.reward_name}” is confirmed — you earned ${pts} Brownie Points.`,
         );
       } else {
         if (claim.status === "cancelled") return { ok: true };
@@ -1013,7 +1013,7 @@ export const resolveClaim = createServerFn({ method: "POST" })
         c.id,
         "reward",
         "Treat cancelled",
-        `“${claim.reward_name}” was cancelled and paws returned.`,
+        `“${claim.reward_name}” was cancelled and Brownie Points returned.`,
       );
     }
     return { ok: true };
@@ -1032,7 +1032,7 @@ export const buyWishlistItem = createServerFn({ method: "POST" })
         and kind = 'wishlist' and archived = false`;
     const r = rows[0];
     if (!r) throw new Error("Wishlist item missing");
-    if (r.created_by === userId) throw new Error("Your person buys this and earns the paws");
+    if (r.created_by === userId) throw new Error("Your person buys this and earns the Brownie Points");
     if (r.point_cost == null) throw new Error("Wishlist needs a point value first");
     // Pending confirmation by wishlist owner, then buyer earns points.
     const claimId = id("rc");
@@ -1045,7 +1045,7 @@ export const buyWishlistItem = createServerFn({ method: "POST" })
       c.id,
       "reward",
       "Wishlist purchase pending",
-      `${me?.display_name ?? "Partner"} says they bought “${r.name}” — confirm to gift them ${r.point_cost} paws.`,
+      `${me?.display_name ?? "Partner"} says they bought “${r.name}” — confirm to gift them ${r.point_cost} Brownie Points.`,
     );
     return { id: claimId };
   });
@@ -1073,7 +1073,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     let pendingReviews: LoggedAction[] = [];
     let pendingClaims: RewardClaim[] = [];
     let recent: LoggedAction[] = [];
-    let weeklySummary = "Pair up to open your shared little notebook of paws.";
+    let weeklySummary = "Pair up to open your shared little notebook of Brownie Points.";
     let notifications: Dashboard["notifications"] = [];
 
     if (coupleRow) {

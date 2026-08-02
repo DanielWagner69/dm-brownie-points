@@ -96,7 +96,7 @@ function LogPage() {
       toast.success(
         retrospective
           ? "Logged for that day — still needs partner approval"
-          : "Logged with soft paws",
+          : "Logged — waiting for partner approval",
       );
       setSelected(null);
       setNote("");
@@ -113,13 +113,13 @@ function LogPage() {
   }
 
   return (
-    <AppShell title="Log a paw" subtitle="Notice something small and kind">
+    <AppShell title="Log Brownie Points" subtitle="Turn a little moment into Brownie Points">
       <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Who is this about?</CardTitle>
             <CardDescription>
-              Be clear — this choice decides whose balance the points land on.
+              Be clear — this choice decides whose Brownie Points balance it lands on.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
@@ -135,7 +135,7 @@ function LogPage() {
             >
               <p className="text-sm font-semibold text-foreground">What I did</p>
               <p className="mt-1 text-xs leading-snug">
-                Points apply to you after partner review
+                Brownie Points apply to you after partner review
               </p>
             </button>
             <button
@@ -149,7 +149,7 @@ function LogPage() {
               )}
             >
               <p className="text-sm font-semibold text-foreground">What {partnerLabel} did</p>
-              <p className="mt-1 text-xs leading-snug">Points apply to {partnerLabel}</p>
+              <p className="mt-1 text-xs leading-snug">Brownie Points apply to {partnerLabel}</p>
             </button>
           </CardContent>
         </Card>
