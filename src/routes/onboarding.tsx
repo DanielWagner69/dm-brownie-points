@@ -17,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { PointsInput } from "@/components/ui/points-input";
+
 import { cn } from "@/lib/utils";
 import { FullPageLoading } from "@/components/paws/loading";
 
@@ -447,14 +449,13 @@ function OnboardingPage() {
                         {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
                       </p>
                     </div>
-                    <Input
-                      type="number"
-                      className="w-20 text-center"
+                    <PointsInput
+                      className="w-20"
                       value={ratings[a.id] ?? a.base_points}
-                      onChange={(e) =>
-                        setRatings((r) => ({ ...r, [a.id]: Number(e.target.value) }))
-                      }
+                      onValueChange={(n) => setRatings((r) => ({ ...r, [a.id]: n }))}
+                      aria-label={`Brownie Points for ${a.name}`}
                     />
+
                   </div>
                 </div>
               ))

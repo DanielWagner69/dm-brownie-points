@@ -6,6 +6,8 @@ import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { PointsInput } from "@/components/ui/points-input";
+
 import { useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
 import {
   listMyPreferenceTargets,
@@ -38,6 +40,9 @@ function SettingsPage() {
   const [prefs, setPrefs] = useState(d?.profile.notification_prefs);
   const [newAction, setNewAction] = useState("");
   const [newPoints, setNewPoints] = useState(1);
+
+
+
   const [newKind, setNewKind] = useState<"positive" | "negative">("positive");
 
   const prefTargets = useQuery({
@@ -201,14 +206,13 @@ function SettingsPage() {
             {(prefTargets.data ?? []).map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-2">
                 <p className="min-w-0 flex-1 truncate text-sm">{a.name}</p>
-                <Input
-                  type="number"
+                <PointsInput
                   className="w-20"
                   value={ratings[a.id] ?? a.base_points}
-                  onChange={(e) =>
-                    setRatings((r) => ({ ...r, [a.id]: Number(e.target.value) }))
-                  }
+                  onValueChange={(n) => setRatings((r) => ({ ...r, [a.id]: n }))}
+                  aria-label={`Brownie Points for ${a.name}`}
                 />
+
               </div>
             ))}
             <Button
@@ -253,11 +257,12 @@ function SettingsPage() {
               >
                 Negative
               </Button>
-              <Input
-                type="number"
+              <PointsInput
                 className="w-24"
                 value={newPoints}
-                onChange={(e) => setNewPoints(Number(e.target.value))}
+                onValueChange={setNewPoints}
+                allowNegative={false}
+                aria-label="Base Brownie Points"
               />
             </div>
             <Button
