@@ -3,9 +3,15 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, PawPrint, TriangleAlert } from "lucide-react";
-import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import {
+  GROK_PROVIDERS,
+  authClient,
+  authEnabled,
+  signIn,
+} from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FullPageLoading } from "@/components/paws/loading";
 import { getDeployStatus } from "@/lib/paws/deploy-status";
@@ -18,6 +24,11 @@ function LoginPage() {
   const { user, isPending } = useCurrentUserState();
   const [busy, setBusy] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
   const deploy = useQuery({
     queryKey: ["deploy-status"],
     queryFn: () => getDeployStatus(),
@@ -30,7 +41,7 @@ function LoginPage() {
 
   if (user) return <Navigate to="/" />;
 
-  async function handleSignIn(providerId: string, label: string) {
+  async function handleOAuth(providerId: string, label: string) {
     if (deploy.data?.needsDatabase) {
       const msg = deploy.data.message ?? "Database is not configured on this publish.";
       setLastError(msg);
@@ -52,6 +63,45 @@ function LoginPage() {
       setBusy(null);
     }
   }
+
+  async function handleEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (deploy.data?.needsDatabase) {
+      const msg = deploy.data.message ?? "Database is not configured.";
+      setLastError(msg);
+      toast.error("Can’t sign in until a database is attached");
+      return;
+    }
+    setBusy("email");
+    setLastError(null);
+    try {
+      if (mode === "signup") {
+        const { error } = await authClient.signUp.email({
+          email: email.trim(),
+          password,
+          name: name.trim() || email.split("@")[0] || "Partner",
+          callbackURL: "/",
+        });
+        if (error) throw new Error(error.message ?? "Sign-up failed");
+      } else {
+        const { error } = await authClient.signIn.email({
+          email: email.trim(),
+          password,
+          callbackURL: "/",
+        });
+        if (error) throw new Error(error.message ?? "Sign-in failed");
+      }
+      window.location.href = "/";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Email sign-in failed";
+      setLastError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const blocked = deploy.data?.needsDatabase === true;
 
   return (
     <main className="paw-bg grid min-h-dvh place-items-center p-5">
@@ -77,40 +127,93 @@ function LoginPage() {
                 Database missing on this publish
               </div>
               <p className="text-danger/90">{deploy.data.message}</p>
-              <p className="mt-2 text-[11px] text-danger/80">
-                Check{" "}
-                <a className="underline underline-offset-2" href="/api/health">
-                  /api/health
-                </a>
-                . You want <code className="rounded bg-danger/10 px-1">hasDatabaseUrl: true</code>.
-              </p>
             </div>
           ) : null}
 
+          {/* Email / password — works on your own Vercel + Neon deploy */}
+          <form onSubmit={(ev) => void handleEmail(ev)} className="flex flex-col gap-2">
+            {mode === "signup" ? (
+              <Input
+                name="name"
+                placeholder="Your name (e.g. Little Prince)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                disabled={blocked || busy !== null}
+              />
+            ) : null}
+            <Input
+              name="email"
+              type="email"
+              required
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              disabled={blocked || busy !== null}
+            />
+            <Input
+              name="password"
+              type="password"
+              required
+              minLength={8}
+              placeholder="Password (8+ characters)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              disabled={blocked || busy !== null}
+            />
+            <Button type="submit" className="w-full" disabled={blocked || busy !== null}>
+              {busy === "email" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {mode === "signup" ? "Creating nest…" : "Signing in…"}
+                </>
+              ) : mode === "signup" ? (
+                "Create account"
+              ) : (
+                "Sign in with email"
+              )}
+            </Button>
+            <button
+              type="button"
+              className="text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+              onClick={() => setMode((m) => (m === "signin" ? "signup" : "signin"))}
+            >
+              {mode === "signin"
+                ? "New here? Create an account"
+                : "Already have an account? Sign in"}
+            </button>
+          </form>
+
           {authEnabled ? (
-            GROK_PROVIDERS.map((p, i) => (
-              <Button
-                key={p.providerId}
-                type="button"
-                variant={i === 0 ? "default" : "outline"}
-                className="w-full"
-                disabled={busy !== null || deploy.data?.needsDatabase === true}
-                onClick={() => void handleSignIn(p.providerId, p.label)}
-              >
-                {busy === p.providerId ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Connecting…
-                  </>
-                ) : (
-                  <>Continue with {p.label}</>
-                )}
-              </Button>
-            ))
-          ) : (
-            <p className="text-center text-sm text-muted-foreground">Sign-in is disabled.</p>
-          )}
-          {lastError && !deploy.data?.needsDatabase ? (
+            <>
+              <div className="relative py-1 text-center text-[11px] text-muted-foreground">
+                <span className="bg-card px-2">or</span>
+              </div>
+              {GROK_PROVIDERS.map((p) => (
+                <Button
+                  key={p.providerId}
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={blocked || busy !== null}
+                  onClick={() => void handleOAuth(p.providerId, p.label)}
+                >
+                  {busy === p.providerId ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    <>Continue with {p.label}</>
+                  )}
+                </Button>
+              ))}
+            </>
+          ) : null}
+
+          {lastError ? (
             <p
               role="alert"
               className="rounded-2xl border border-danger/30 bg-danger/10 px-3 py-2 text-left text-xs leading-relaxed text-danger"
@@ -120,6 +223,7 @@ function LoginPage() {
           ) : null}
           <p className="pt-1 text-center text-xs leading-relaxed text-muted-foreground">
             Only you and your person will ever see your shared notebook. One couple. Private paws.
+            Each of you creates your own account, then pairs with a paw-code.
           </p>
         </CardContent>
       </Card>
