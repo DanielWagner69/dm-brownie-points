@@ -1,17 +1,11 @@
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
 
-// An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
-// "unset" — otherwise production would silently run on the PGLite fallback.
 const rawDatabaseUrl =
   typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
 const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 
-/**
- * True on Vercel / AWS Lambda / other serverless hosts where the embedded
- * PGLite WASM DB cannot open files under `/var/task`.
- */
 export function isServerlessRuntime(): boolean {
   if (typeof process === "undefined") return false;
   return Boolean(
@@ -22,15 +16,8 @@ export function isServerlessRuntime(): boolean {
   );
 }
 
-/**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (preview only).
- * On serverless without DATABASE_URL we do NOT fall back to PGLite — that path
- * crashes and makes Google sign-in bounce back to login with no explanation.
- */
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
-/** Human-readable reason when production has no durable database. */
 export const MISSING_DATABASE_URL_MESSAGE =
   "This published app has no DATABASE_URL (Postgres). Auth is set up, but there is nowhere to store accounts or couple data. The platform must attach a Neon database on publish, or you set DATABASE_URL yourself. Preview PGLite cannot run on the live host.";
 
@@ -49,6 +36,7 @@ const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
+  __neonMigrateChain__?: Promise<void>;
 };
 
 const OID_INT8 = 20;
@@ -72,6 +60,59 @@ function toSql(run: Run): Sql {
   return sql;
 }
 
+/**
+ * Explicit raw imports so Vite/Nitro always bundles migration SQL into the
+ * server function. `import.meta.glob("/migrations/*.sql")` can resolve to
+ * zero files in the Vercel serverless bundle, which left Neon empty.
+ */
+import migration0001 from "../../migrations/0001_auth.sql?raw";
+import migration0002 from "../../migrations/0002_paws.sql?raw";
+
+function loadMigrationFiles(): { name: string; text: string }[] {
+  return [
+    { name: "0001_auth.sql", text: migration0001 },
+    { name: "0002_paws.sql", text: migration0002 },
+  ];
+}
+
+async function applyMigrationsWithPool(pool: import("pg").Pool): Promise<string[]> {
+  const appliedNow: string[] = [];
+  const client = await pool.connect();
+  try {
+    await client.query(
+      "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+    );
+    const applied = new Set(
+      (await client.query<{ name: string }>("SELECT name FROM _migrations")).rows.map(
+        (r) => r.name,
+      ),
+    );
+    for (const { name, text } of loadMigrationFiles()) {
+      if (applied.has(name)) continue;
+      if (!text || !String(text).trim()) {
+        throw new Error(`Migration ${name} is empty — SQL was not bundled`);
+      }
+      try {
+        await client.query("BEGIN");
+        await client.query(text);
+        await client.query("INSERT INTO _migrations (name) VALUES ($1)", [name]);
+        await client.query("COMMIT");
+        appliedNow.push(name);
+      } catch (err) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* keep original */
+        }
+        throw err;
+      }
+    }
+  } finally {
+    client.release();
+  }
+  return appliedNow;
+}
+
 function createNeonSql(): Promise<Sql> {
   globalRef.__pgSqlPromise__ ??= (async () => {
     const { Pool, types } = await import("pg");
@@ -84,6 +125,15 @@ function createNeonSql(): Promise<Sql> {
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 15_000,
     });
+
+    // Apply migrations on first use (covers Vercel where build-time migrate
+    // was skipped because DATABASE_URL was runtime-only, or SQL wasn't found).
+    const pass = (globalRef.__neonMigrateChain__ ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => applyMigrationsWithPool(pool));
+    globalRef.__neonMigrateChain__ = pass.then(() => undefined);
+    await pass;
+
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -122,19 +172,9 @@ async function ensurePglite(): Promise<import("@electric-sql/pglite").PGlite> {
   const pg = await globalRef.__pgliteInstance__;
 
   const migrate = async (): Promise<void> => {
-    const migrations = import.meta.glob("/migrations/*.sql", {
-      query: "?raw",
-      import: "default",
-      eager: true,
-    }) as Record<string, string>;
-    const doneRows = await pg.query<{ name: string }>(
-      "select name from _migrations",
-    );
+    const doneRows = await pg.query<{ name: string }>("select name from _migrations");
     const done = new Set(doneRows.rows.map((r) => r.name));
-    for (const [path, text] of Object.entries(migrations).sort(([a], [b]) =>
-      a.localeCompare(b),
-    )) {
-      const name = path.split("/").pop() as string;
+    for (const { name, text } of loadMigrationFiles()) {
       if (done.has(name)) continue;
       await pg.transaction(async (tx) => {
         await tx.exec(text);
@@ -179,7 +219,6 @@ export function getSql(): Promise<Sql> {
   return sqlPromise;
 }
 
-/** Shared PGLite instance (preview only), migrations applied. */
 export function getPglite(): Promise<import("@electric-sql/pglite").PGlite> {
   if (dbSource !== "pglite") {
     return Promise.reject(
@@ -189,10 +228,6 @@ export function getPglite(): Promise<import("@electric-sql/pglite").PGlite> {
   return ensurePglite();
 }
 
-/**
- * Kick schema bootstrap early in dev (and for Better Auth's PGLite dialect).
- * On serverless without DATABASE_URL this is a no-op (we fail clearly on first query).
- */
 export async function ensureDbReady(): Promise<void> {
   if (dbSource === "pglite" && isServerlessRuntime()) return;
   await getSql();
