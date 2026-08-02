@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Search } from "lucide-react";
+import { Camera, ImageIcon, Search } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { logAction } from "@/lib/paws/server";
 import { cn, formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ActionType } from "@/lib/paws/types";
+import { compressImageFile } from "@/lib/paws/image";
+import { tone } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/log")({
   component: LogPage,
@@ -37,6 +39,8 @@ function yearsAgoLocalISO(years: number) {
 function LogPage() {
   const user = useCurrentUser();
   const dash = useDashboard(Boolean(user));
+  const theme = dash.data?.profile.theme;
+  const t = (s: string) => tone(s, theme);
   const types = useActionTypes(Boolean(user));
   const invalidate = useInvalidatePaws();
 
@@ -113,11 +117,11 @@ function LogPage() {
   }
 
   return (
-    <AppShell title="Log Brownie Points" subtitle="Turn a little moment into Brownie Points">
+    <AppShell title={t("Log Brownie Points")} subtitle={t("Turn a little moment into Brownie Points")}>
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Who is this about?</CardTitle>
+            <CardTitle className="text-base">{t("Who is this about?")}</CardTitle>
             <CardDescription>
               Be clear — this choice decides whose Brownie Points balance it lands on.
             </CardDescription>
@@ -228,7 +232,7 @@ function LogPage() {
                     onChange={(e) => setDetail(e.target.checked)}
                     className="h-5 w-5 accent-[var(--primary)]"
                   />
-                  <span className="text-sm font-medium">Attention to Detail</span>
+                  <span className="text-sm font-medium">{t("Attention to Detail")}</span>
                 </label>
               ) : null}
 
@@ -242,7 +246,7 @@ function LogPage() {
                   }}
                   className="h-5 w-5 accent-[var(--primary)]"
                 />
-                <span className="text-sm font-medium">Log for a past day</span>
+                <span className="text-sm font-medium">{t("Log for a past day")}</span>
               </label>
               {retrospective ? (
                 <div className="space-y-2">
@@ -263,18 +267,40 @@ function LogPage() {
               ) : null}
 
               <div className="space-y-2">
-                <Label htmlFor="note">Little note</Label>
+                <Label htmlFor="note">{t("Little note")}</Label>
                 <Textarea
                   id="note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Optional soft context…"
+                  placeholder={t("Optional soft context…")}
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl border border-border px-3 text-sm">
+                  <ImageIcon className="h-4 w-4" />
+                  {t("Gallery")}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      void (async () => {
+                        try {
+                          const dataUrl = await compressImageFile(file);
+                          setPhoto(dataUrl);
+                        } catch {
+                          toast.error("Could not read that photo");
+                        }
+                      })();
+                    }}
+                  />
+                </label>
                 <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl border border-border px-3 text-sm">
                   <Camera className="h-4 w-4" />
-                  Photo
+                  {t("Camera")}
                   <input
                     type="file"
                     accept="image/*"
@@ -282,19 +308,28 @@ function LogPage() {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
+                      e.target.value = "";
                       if (!file) return;
-                      if (file.size > 280_000) {
-                        toast.error("Keep photos under ~280KB for now");
-                        return;
-                      }
-                      const reader = new FileReader();
-                      reader.onload = () => setPhoto(String(reader.result));
-                      reader.readAsDataURL(file);
+                      void (async () => {
+                        try {
+                          const dataUrl = await compressImageFile(file);
+                          setPhoto(dataUrl);
+                        } catch {
+                          toast.error("Could not read that photo");
+                        }
+                      })();
                     }}
                   />
                 </label>
                 {photo ? (
-                  <img src={photo} alt="" className="h-11 w-11 rounded-xl object-cover" />
+                  <button
+                    type="button"
+                    className="relative"
+                    onClick={() => setPhoto(null)}
+                    aria-label="Remove photo"
+                  >
+                    <img src={photo} alt="" className="h-11 w-11 rounded-xl object-cover" />
+                  </button>
                 ) : null}
               </div>
               <Button className="w-full" disabled={busy} onClick={() => void submit()}>

@@ -5,6 +5,7 @@ import {
   Gift,
   HeartHandshake,
   PawPrint,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/paws/shell";
@@ -40,6 +41,14 @@ function HomePage() {
       subtitle={`${t("Soft notes with")} ${partnerLabel}`}
     >
       <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/app/settings" hash="profile">
+              <UserRound className="h-4 w-4" />
+              {t("Edit profile")}
+            </Link>
+          </Button>
+        </div>
         <Card className="overflow-hidden">
           <CardContent className="relative p-5">
             <div className="flex items-end justify-between gap-3">

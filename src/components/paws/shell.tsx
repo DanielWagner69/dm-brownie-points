@@ -2,6 +2,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Gift, History, Home, PawPrint, PlusCircle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { useDashboard } from "@/lib/paws/hooks";
+import { tone } from "@/lib/paws/tone";
 
 const tabs: {
   to: "/app" | "/app/log" | "/app/history" | "/app/rewards" | "/app/settings";
@@ -26,6 +28,9 @@ export function AppShell({
   subtitle?: string;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const dash = useDashboard(true);
+  const theme = dash.data?.profile.theme;
+  const t = (s: string) => tone(s, theme);
 
   return (
     <div className="paw-bg mx-auto flex min-h-dvh w-full max-w-lg flex-col">
@@ -36,7 +41,7 @@ export function AppShell({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              Pawmise
+              {t("Pawmise")}
             </p>
             {title ? (
               <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
@@ -69,7 +74,7 @@ export function AppShell({
                   )}
                 >
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} />
-                  {tab.label}
+                  {t(tab.label)}
                 </Link>
               </li>
             );

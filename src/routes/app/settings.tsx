@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Flame, Flower2, Grape, LogOut, Moon, Plane, Sun } from "lucide-react";
+import { Flame, Flower2, Grape, LogOut, Moon, Plane, Sun, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +53,14 @@ function SettingsPage() {
   const [ratings, setRatings] = useState<Record<number, number>>({});
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#profile") {
+      requestAnimationFrame(() => {
+        document.getElementById("profile")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     if (!d) return;
     setName(d.profile.display_name);
     setBio(d.profile.bio);
@@ -81,9 +89,10 @@ function SettingsPage() {
   return (
     <AppShell title="Nest settings" subtitle="Themes, taste, pairing">
       <div className="space-y-4 pb-6">
-        <Card>
+        <Card id="profile">
           <CardHeader>
             <CardTitle className="text-base">Profile</CardTitle>
+            <CardDescription>Change your display name, nickname, and bio anytime.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
@@ -219,6 +228,40 @@ function SettingsPage() {
                   onValueChange={(n) => setRatings((r) => ({ ...r, [a.id]: n }))}
                   aria-label={`Brownie Points for ${a.name}`}
                 />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 text-danger"
+                  aria-label={`Delete ${a.name}`}
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        `Remove “${a.name}” from your nest? You can always add a custom action later.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    try {
+                      await upsertActionType({
+                        data: {
+                          id: a.id,
+                          name: a.name,
+                          kind: a.kind,
+                          base_points: a.base_points,
+                          category: a.category,
+                          archive: true,
+                        },
+                      });
+                      toast.success("Removed from nest");
+                      invalidate();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not delete");
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             ))}
             <Button

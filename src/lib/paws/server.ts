@@ -174,17 +174,21 @@ async function syncDefaultActions(coupleId: string, userId: string) {
       where couple_id = ${coupleId} and name = ${name}`;
   }
 
-  const rows = await sql<{ name: string }>`
-    select name from action_types where couple_id = ${coupleId} and archived = false`;
-  const have = new Set(rows.map((r) => r.name));
+  const rows = await sql<{ name: string; archived: boolean }>`
+    select name, archived from action_types where couple_id = ${coupleId}`;
+  const haveActive = new Set(rows.filter((r) => !r.archived).map((r) => r.name));
+  const haveAny = new Set(rows.map((r) => r.name));
 
   for (const a of DEFAULT_ACTIONS) {
-    if (have.has(a.name)) {
+    if (haveActive.has(a.name)) {
       // Keep points in line for known defaults (safe for catalog items)
       await sql`
         update action_types
         set base_points = ${a.base_points}, kind = ${a.kind}, category = ${a.category}
         where couple_id = ${coupleId} and name = ${a.name} and is_default = true and archived = false`;
+    } else if (haveAny.has(a.name)) {
+      // Intentionally archived (or renamed leftover) — do not re-insert
+      continue;
     } else {
       await sql`
         insert into action_types (couple_id, name, kind, base_points, category, is_default, created_by)
@@ -636,7 +640,7 @@ export const logAction = createServerFn({ method: "POST" })
     if (at.kind === "positive" && points < 0) points = Math.abs(points);
 
     const photo =
-      data.photo_data && data.photo_data.length < 400_000 ? data.photo_data : null;
+      data.photo_data && data.photo_data.length < 700_000 ? data.photo_data : null;
     const actionId = id("la");
     // Review window always starts from *now* so partner still has time to approve.
     const editable = hoursFromNow(24).toISOString();
