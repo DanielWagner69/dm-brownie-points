@@ -209,7 +209,8 @@ function OnboardingPage() {
     }
   }
 
-  const accountLabel = user.email || user.name || "this account";
+  const accountLabel = user.primaryEmail || user.displayName || "this account";
+
 
   return (
     <main className="paw-bg mx-auto min-h-dvh w-full max-w-lg px-4 py-6">
