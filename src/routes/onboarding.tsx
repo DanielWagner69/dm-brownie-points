@@ -14,11 +14,11 @@ import {
   savePreferences,
   updateProfile,
 } from "@/lib/paws/server";
+import { DEFAULT_ACTIONS, PREFERENCE_SAMPLES } from "@/lib/paws/defaults";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { PointsInput } from "@/components/ui/points-input";
-
 import { cn } from "@/lib/utils";
 import { FullPageLoading } from "@/components/paws/loading";
 
@@ -26,7 +26,40 @@ export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
 });
 
-type StepId = "profile" | "pairing" | "preferences";
+type StepId = "profile" | "preferences" | "pairing";
+
+const PREF_SAMPLE_SET = new Set(PREFERENCE_SAMPLES);
+
+function draftKey(userId: string) {
+  return `pawmise-pref-draft-${userId}`;
+}
+
+function loadDraft(userId: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(draftKey(userId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDraft(userId: string, ratings: Record<string, number>) {
+  try {
+    localStorage.setItem(draftKey(userId), JSON.stringify(ratings));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearDraft(userId: string) {
+  try {
+    localStorage.removeItem(draftKey(userId));
+  } catch {
+    /* ignore */
+  }
+}
 
 function OnboardingPage() {
   const { user, isPending } = useCurrentUserState();
@@ -45,17 +78,26 @@ function OnboardingPage() {
   const [joinCode, setJoinCode] = useState("");
   const [invite, setInvite] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [ratings, setRatings] = useState<Record<number, number>>({});
-  /** After first hydrate from server, don’t force-step on every poll (allows Back). */
+  /** Ratings keyed by action name (works before and after pairing). */
+  const [ratings, setRatings] = useState<Record<string, number>>({});
   const hydratedStep = useRef(false);
+  const ratingsHydrated = useRef(false);
 
+  // Profile → Preferences → Pairing
   const steps = useMemo(
     () =>
       [
         { id: "profile" as const, label: "You" },
-        { id: "pairing" as const, label: "Pair" },
         { id: "preferences" as const, label: "Taste" },
+        { id: "pairing" as const, label: "Pair" },
       ] as const,
+    [],
+  );
+
+  const stepOrder: StepId[] = ["profile", "preferences", "pairing"];
+
+  const staticPrefItems = useMemo(
+    () => DEFAULT_ACTIONS.filter((a) => PREF_SAMPLE_SET.has(a.name)),
     [],
   );
 
@@ -77,6 +119,7 @@ function OnboardingPage() {
       if (s === "preferences" || s === "pairing" || s === "profile") {
         setStep(s);
       } else if (me.data.couple && !me.data.couple.user_b) {
+        // Host waiting for partner → pairing
         setStep("pairing");
       }
     }
@@ -88,14 +131,31 @@ function OnboardingPage() {
     enabled: Boolean(user) && step === "preferences" && Boolean(me.data?.couple),
   });
 
+  // Init ratings once: server prefs if couple, else static defaults + any local draft
   useEffect(() => {
-    if (!prefsQuery.data) return;
-    const init: Record<number, number> = {};
-    for (const a of prefsQuery.data) {
-      init[a.id] = a.my_points ?? a.base_points;
+    if (!user || ratingsHydrated.current) return;
+    if (step !== "preferences") return;
+
+    if (me.data?.couple) {
+      if (!prefsQuery.data) return;
+      const draft = loadDraft(user.id);
+      const init: Record<string, number> = {};
+      for (const a of prefsQuery.data) {
+        init[a.name] = draft[a.name] ?? a.my_points ?? a.base_points;
+      }
+      setRatings(init);
+      ratingsHydrated.current = true;
+      return;
+    }
+
+    const draft = loadDraft(user.id);
+    const init: Record<string, number> = {};
+    for (const a of staticPrefItems) {
+      init[a.name] = draft[a.name] ?? a.base_points;
     }
     setRatings(init);
-  }, [prefsQuery.data]);
+    ratingsHydrated.current = true;
+  }, [user, step, me.data?.couple, prefsQuery.data, staticPrefItems]);
 
   if (isPending || (Boolean(user) && me.isLoading && !me.data)) {
     return <FullPageLoading message="Opening soft setup…" />;
@@ -105,15 +165,14 @@ function OnboardingPage() {
     return <Navigate to="/app" />;
   }
 
-  const stepOrder: StepId[] = ["profile", "pairing", "preferences"];
   const stepIndex = stepOrder.indexOf(step);
 
   function goBack() {
-    if (step === "preferences") {
-      setStep("pairing");
+    if (step === "pairing") {
+      setStep("preferences");
       return;
     }
-    if (step === "pairing") {
+    if (step === "preferences") {
       setStep("profile");
       return;
     }
@@ -121,7 +180,6 @@ function OnboardingPage() {
 
   function goToStep(target: StepId) {
     const targetIdx = stepOrder.indexOf(target);
-    // Only allow going back (or staying), not skipping ahead past current progress
     if (targetIdx <= stepIndex) setStep(target);
   }
 
@@ -135,6 +193,18 @@ function OnboardingPage() {
     }
   }
 
+  async function applyRatingsToCouple() {
+    const targets = await listMyPreferenceTargets();
+    const payload = targets
+      .map((a) => {
+        const preferred = ratings[a.name];
+        if (preferred == null || !Number.isFinite(preferred)) return null;
+        return { action_type_id: a.id, preferred_points: preferred };
+      })
+      .filter((x): x is { action_type_id: number; preferred_points: number } => x != null);
+    if (payload.length) await savePreferences({ data: payload });
+  }
+
   async function saveProfile() {
     setBusy(true);
     try {
@@ -143,14 +213,33 @@ function OnboardingPage() {
           display_name: name.trim() || "Little one",
           bio: bio.trim(),
           partner_nickname: nickname.trim(),
-          onboarding_step: "pairing",
+          onboarding_step: "preferences",
         },
       });
-      setStep("pairing");
+      ratingsHydrated.current = false;
+      setStep("preferences");
       await me.refetch();
       toast.success("Profile tucked in softly");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePrefs() {
+    setBusy(true);
+    try {
+      if (user) saveDraft(user.id, ratings);
+      if (me.data?.couple) {
+        await applyRatingsToCouple();
+      }
+      await updateProfile({ data: { onboarding_step: "pairing" } });
+      toast.success("Taste saved — next, link with your person");
+      setStep("pairing");
+      await me.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save prefs");
     } finally {
       setBusy(false);
     }
@@ -161,10 +250,16 @@ function OnboardingPage() {
     try {
       const c = await createInvite();
       setInvite(c.invite_code);
-      await updateProfile({ data: { onboarding_step: "preferences" } });
+      // Apply any draft ratings now that couple + defaults exist
+      try {
+        await applyRatingsToCouple();
+        if (user) clearDraft(user.id);
+      } catch {
+        /* draft apply is best-effort */
+      }
+      await updateProfile({ data: { onboarding_step: "pairing" } });
       toast.success("Invite ready — share with your person");
       await me.refetch();
-      setStep("preferences");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not create invite");
     } finally {
@@ -176,9 +271,16 @@ function OnboardingPage() {
     setBusy(true);
     try {
       await joinWithCode({ data: joinCode.trim().toUpperCase() });
+      try {
+        await applyRatingsToCouple();
+        if (user) clearDraft(user.id);
+      } catch {
+        /* best-effort */
+      }
+      await updateProfile({ data: { onboarding_step: "done" } });
       toast.success("Linked — welcome to your shared Brownie Points nest");
-      setStep("preferences");
       await me.refetch();
+      void nav({ to: "/app" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Join failed");
     } finally {
@@ -186,33 +288,22 @@ function OnboardingPage() {
     }
   }
 
-  async function savePrefs() {
-    setBusy(true);
-    try {
-      const payload = Object.entries(ratings).map(([action_type_id, preferred_points]) => ({
-        action_type_id: Number(action_type_id),
-        preferred_points,
-      }));
-      if (payload.length) await savePreferences({ data: payload });
-      await updateProfile({ data: { onboarding_step: "done" } });
-      toast.success("Preferences saved — soft mode engaged");
-      const fresh = await getMe();
-      await me.refetch();
-      if (fresh.couple?.user_b) {
-        void nav({ to: "/app" });
-      } else {
-        setStep("pairing");
-        toast.message("Waiting for your person to join with the code");
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save prefs");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const accountLabel = user.primaryEmail || user.displayName || "this account";
 
+  const prefRows =
+    me.data?.couple && prefsQuery.data && prefsQuery.data.length > 0
+      ? prefsQuery.data.map((a) => ({
+          key: a.name,
+          name: a.name,
+          kind: a.kind,
+          base: a.base_points,
+        }))
+      : staticPrefItems.map((a) => ({
+          key: a.name,
+          name: a.name,
+          kind: a.kind,
+          base: a.base_points,
+        }));
 
   return (
     <main className="paw-bg mx-auto min-h-dvh w-full max-w-lg px-4 py-6">
@@ -280,7 +371,7 @@ function OnboardingPage() {
         })}
       </div>
       <p className="mb-4 text-center text-xs text-muted-foreground">
-        Step {stepIndex + 1} of {steps.length}
+        Step {stepIndex + 1} of {steps.length}: {steps[stepIndex]?.label}
         {step !== "profile" ? " · Back anytime" : " · Wrong email? Change account above"}
       </p>
 
@@ -321,7 +412,7 @@ function OnboardingPage() {
               />
             </div>
             <Button className="w-full" disabled={busy} onClick={() => void saveProfile()}>
-              Continue
+              Continue to taste
             </Button>
             <Button
               type="button"
@@ -330,6 +421,52 @@ function OnboardingPage() {
               onClick={() => void switchAccount()}
             >
               Wrong account? Sign out and use another email
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === "preferences" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              What feels good to you?
+            </CardTitle>
+            <CardDescription>
+              Set how much each thing should be worth in Brownie Points for you. You can tweak these
+              later. Pairing comes next.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {me.data?.couple && prefsQuery.isLoading ? (
+              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ) : (
+              prefRows.map((a) => (
+                <div key={a.key} className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium leading-snug">{a.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {a.kind} · default {a.base > 0 ? `+${a.base}` : a.base}
+                      </p>
+                    </div>
+                    <PointsInput
+                      className="w-20"
+                      value={ratings[a.name] ?? a.base}
+                      onValueChange={(n) => setRatings((r) => ({ ...r, [a.name]: n }))}
+                      aria-label={`Brownie Points for ${a.name}`}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+            <Button className="w-full" disabled={busy} onClick={() => void savePrefs()}>
+              Save taste & continue to pairing
+            </Button>
+            <Button variant="outline" className="w-full" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to profile
             </Button>
           </CardContent>
         </Card>
@@ -406,73 +543,11 @@ function OnboardingPage() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-col gap-2">
-            <Button variant="outline" className="w-full" onClick={goBack}>
-              <ArrowLeft className="h-4 w-4" />
-              Back to profile
-            </Button>
-            {me.data?.couple ? (
-              <Button variant="ghost" className="w-full" onClick={() => setStep("preferences")}>
-                Rate preferences next
-              </Button>
-            ) : null}
-          </div>
+          <Button variant="outline" className="w-full" onClick={goBack}>
+            <ArrowLeft className="h-4 w-4" />
+            Back to taste
+          </Button>
         </div>
-      )}
-
-      {step === "preferences" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              What feels good to you?
-            </CardTitle>
-            <CardDescription>
-              Your ratings shape the suggested scores when your partner logs things toward you.
-              Changes only affect future logs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!me.data?.couple ? (
-              <p className="text-sm text-muted-foreground">
-                Create or join a pair first so we can seed your shared action list.
-              </p>
-            ) : prefsQuery.isLoading ? (
-              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
-            ) : (
-              (prefsQuery.data ?? []).map((a) => (
-                <div key={a.id} className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium leading-snug">{a.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
-                      </p>
-                    </div>
-                    <PointsInput
-                      className="w-20"
-                      value={ratings[a.id] ?? a.base_points}
-                      onValueChange={(n) => setRatings((r) => ({ ...r, [a.id]: n }))}
-                      aria-label={`Brownie Points for ${a.name}`}
-                    />
-
-                  </div>
-                </div>
-              ))
-            )}
-            <Button
-              className="w-full"
-              disabled={busy || !me.data?.couple}
-              onClick={() => void savePrefs()}
-            >
-              Save taste & continue
-            </Button>
-            <Button variant="outline" className="w-full" onClick={goBack}>
-              <ArrowLeft className="h-4 w-4" />
-              Back to pairing
-            </Button>
-          </CardContent>
-        </Card>
       )}
     </main>
   );
