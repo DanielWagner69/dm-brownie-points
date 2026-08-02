@@ -159,7 +159,6 @@ const NAUGHTY: Record<string, string> = {
   Repeatable: "Repeatable (keep coming back 😉)",
   Save: "Save this filth",
   "Cancel edit": "Cancel edit",
-  Treats: "Treats 🔥",
   Wishlist: "Wishlist (spoil me)",
 
   // Nest / settings
