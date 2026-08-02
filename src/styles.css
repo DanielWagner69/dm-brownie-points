@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-sans: "Segoe UI", "Nunito", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI", "Nunito", system-ui, -apple-system, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-foreground: var(--fg);
+  --color-muted: var(--muted-bg);
+  --color-muted-foreground: var(--fg-muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-fg);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-fg);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-fg);
+  --color-card-foreground: var(--fg);
+
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.75rem;
+}
+
+/* Warm default — soft cream + clay accent (playful couple notebook) */
+:root,
+[data-theme="warm"] {
+  --bg: #f7f1ea;
+  --surface: #fffaf5;
+  --card: #ffffff;
+  --fg: #2c2420;
+  --fg-muted: #7a6a60;
+  --muted-bg: #efe4d8;
+  --border: color-mix(in oklab, #2c2420 12%, transparent);
+  --primary: #b56b4a;
+  --primary-fg: #fffaf5;
+  --secondary: #efe4d8;
+  --secondary-fg: #2c2420;
+  --accent: #e8c4a8;
+  --accent-fg: #3a2a22;
+  --ring: #b56b4a;
+  --positive: #3d7a5c;
+  --danger: #b54a4a;
+  --danger-fg: #fffaf5;
+}
+
+[data-theme="dusk"] {
+  --bg: #141210;
+  --surface: #1c1916;
+  --card: #221e1a;
+  --fg: #f3ebe3;
+  --fg-muted: #a89888;
+  --muted-bg: #2a2420;
+  --border: color-mix(in oklab, #f3ebe3 12%, transparent);
+  --primary: #d4926e;
+  --primary-fg: #1a1410;
+  --secondary: #2a2420;
+  --secondary-fg: #f3ebe3;
+  --accent: #5c4030;
+  --accent-fg: #f3ebe3;
+  --ring: #d4926e;
+  --positive: #6db890;
+  --danger: #e07a7a;
+  --danger-fg: #1a1410;
+}
+
+[data-theme="blossom"] {
+  --bg: #faf6f7;
+  --surface: #fff9fa;
+  --card: #ffffff;
+  --fg: #2a2226;
+  --fg-muted: #7a6670;
+  --muted-bg: #f0e4e8;
+  --border: color-mix(in oklab, #2a2226 12%, transparent);
+  --primary: #a65d72;
+  --primary-fg: #fff9fa;
+  --secondary: #f0e4e8;
+  --secondary-fg: #2a2226;
+  --accent: #e8cdd6;
+  --accent-fg: #3a222c;
+  --ring: #a65d72;
+  --positive: #3d7a5c;
+  --danger: #b54a4a;
+  --danger-fg: #fff9fa;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* soft paw watermark */
+.paw-bg {
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% -10%,
+    color-mix(in oklab, var(--primary) 12%, transparent),
+    transparent
+  );
+}
+
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

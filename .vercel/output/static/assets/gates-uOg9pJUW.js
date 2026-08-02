@@ -1,0 +1,1 @@
+import{M as e}from"./createLucideIcon-B2hCHqS2.js";import{a as t}from"./index-m_FX-4lE.js";var n=e(),r=`/login`;function i({to:e=r}){return(0,n.jsx)(t,{to:e})}export{i as t};
