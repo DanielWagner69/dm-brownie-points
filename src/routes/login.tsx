@@ -169,7 +169,7 @@ function LoginPage() {
             Only you and your person will ever see your shared notebook. One couple. Private paws.
             Each of you creates your own email account, then pairs with a paw-code.
           </p>
-          <p className="text-center text-[10px] text-muted-foreground/80">Email-only login · v2</p>
+          <p className="text-center text-[10px] text-muted-foreground/80">Email sign-in only · v3</p>
         </CardContent>
       </Card>
     </main>
