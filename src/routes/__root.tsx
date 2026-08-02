@@ -27,7 +27,8 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "A private, playful notebook for couples to notice each other’s effort — Brownie Points with bulochka energy.",
+          "A private little world of Brownie Points for two. Recognizing the big and little things in life and showing appreciation.",
+
       },
       { name: "theme-color", content: "#b56b4a" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
