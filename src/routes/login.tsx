@@ -3,12 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, PawPrint, TriangleAlert } from "lucide-react";
-import {
-  GROK_PROVIDERS,
-  authClient,
-  authEnabled,
-  signIn,
-} from "@/lib/auth/client";
+import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +17,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -41,29 +36,6 @@ function LoginPage() {
 
   if (user) return <Navigate to="/" />;
 
-  async function handleOAuth(providerId: string, label: string) {
-    if (deploy.data?.needsDatabase) {
-      const msg = deploy.data.message ?? "Database is not configured on this publish.";
-      setLastError(msg);
-      toast.error("Can’t sign in until a database is attached");
-      return;
-    }
-    setBusy(providerId);
-    setLastError(null);
-    try {
-      await signIn(providerId, { callbackURL: "/", errorCallbackURL: "/login" });
-    } catch (e) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : `Could not start ${label} sign-in. Please try again.`;
-      setLastError(msg);
-      toast.error(msg);
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (deploy.data?.needsDatabase) {
@@ -72,7 +44,7 @@ function LoginPage() {
       toast.error("Can’t sign in until a database is attached");
       return;
     }
-    setBusy("email");
+    setBusy(true);
     setLastError(null);
     try {
       if (mode === "signup") {
@@ -97,7 +69,7 @@ function LoginPage() {
       setLastError(msg);
       toast.error(msg);
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
@@ -130,7 +102,6 @@ function LoginPage() {
             </div>
           ) : null}
 
-          {/* Email / password — works on your own Vercel + Neon deploy */}
           <form onSubmit={(ev) => void handleEmail(ev)} className="flex flex-col gap-2">
             {mode === "signup" ? (
               <Input
@@ -139,7 +110,7 @@ function LoginPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
-                disabled={blocked || busy !== null}
+                disabled={blocked || busy}
               />
             ) : null}
             <Input
@@ -150,7 +121,7 @@ function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              disabled={blocked || busy !== null}
+              disabled={blocked || busy}
             />
             <Input
               name="password"
@@ -161,10 +132,10 @@ function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              disabled={blocked || busy !== null}
+              disabled={blocked || busy}
             />
-            <Button type="submit" className="w-full" disabled={blocked || busy !== null}>
-              {busy === "email" ? (
+            <Button type="submit" className="w-full" disabled={blocked || busy}>
+              {busy ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {mode === "signup" ? "Creating nest…" : "Signing in…"}
@@ -185,33 +156,6 @@ function LoginPage() {
                 : "Already have an account? Sign in"}
             </button>
           </form>
-
-          {authEnabled ? (
-            <>
-              <div className="relative py-1 text-center text-[11px] text-muted-foreground">
-                <span className="bg-card px-2">or</span>
-              </div>
-              {GROK_PROVIDERS.map((p) => (
-                <Button
-                  key={p.providerId}
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={blocked || busy !== null}
-                  onClick={() => void handleOAuth(p.providerId, p.label)}
-                >
-                  {busy === p.providerId ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Connecting…
-                    </>
-                  ) : (
-                    <>Continue with {p.label}</>
-                  )}
-                </Button>
-              ))}
-            </>
-          ) : null}
 
           {lastError ? (
             <p
