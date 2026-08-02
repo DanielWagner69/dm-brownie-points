@@ -16,7 +16,7 @@ import {
 } from "@/lib/paws/server";
 import { downloadText, formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { tone } from "@/lib/paws/tone";
+import { tone, toneActionName } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/history")({
   component: HistoryPage,
@@ -123,7 +123,7 @@ function HistoryPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium leading-snug break-words">{a.action_name}</p>
+                    <p className="font-medium leading-snug break-words">{toneActionName(a.action_name, a.kind, theme, a.id)}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {a.logger_name} → {a.applies_name} · {a.category} ·{" "}
                       {new Date(a.created_at).toLocaleString()}

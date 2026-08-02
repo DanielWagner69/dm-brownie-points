@@ -16,7 +16,7 @@ import { useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
 import { resolveClaim, resolveModification, reviewAction } from "@/lib/paws/server";
 import { formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { tone } from "@/lib/paws/tone";
+import { tone, toneActionName } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/")({
   component: HomePage,
@@ -120,7 +120,7 @@ function HomePage() {
             <CardContent className="space-y-3">
               {d.pendingModifications.map((a) => (
                 <div key={a.id} className="rounded-2xl border border-border bg-surface p-3">
-                  <p className="text-sm font-medium">{a.action_name}</p>
+                  <p className="text-sm font-medium">{toneActionName(a.action_name, a.kind, theme, a.id)}</p>
                   <p className="text-xs text-muted-foreground">
                     You logged {formatPoints(a.points)} · they propose{" "}
                     <span className="font-semibold text-foreground tabular">
@@ -180,6 +180,7 @@ function HomePage() {
                   key={a.id}
                   a={a}
                   t={t}
+                  theme={theme}
                   onDone={invalidate}
                 />
               ))}
@@ -270,7 +271,7 @@ function HomePage() {
                   className="flex items-center justify-between gap-2 rounded-2xl bg-muted/40 px-3 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="break-words text-sm font-medium leading-snug">{a.action_name}</p>
+                    <p className="break-words text-sm font-medium leading-snug">{toneActionName(a.action_name, a.kind, theme, a.id)}</p>
                     <p className="text-xs text-muted-foreground">
                       {a.logger_name} · {a.status}
                     </p>
@@ -310,6 +311,7 @@ function HomePage() {
 function ReviewActions({
   a,
   t,
+  theme,
   onDone,
 }: {
   a: {
@@ -321,20 +323,25 @@ function ReviewActions({
     kind: string;
   };
   t: (s: string) => string;
+  theme: string | null | undefined;
   onDone: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-3">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{a.action_name}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-snug [overflow-wrap:normal] [word-break:normal]">
+            {toneActionName(a.action_name, a.kind, theme, a.id)}
+          </p>
           <p className="text-xs text-muted-foreground">
             {a.direction === "self" ? "They did" : "You did"} ·{" "}
             <span className="tabular">{formatPoints(a.points)}</span>
           </p>
           {a.note ? <p className="mt-1 text-sm text-muted-foreground">{a.note}</p> : null}
         </div>
-        <Badge variant={a.kind === "positive" ? "positive" : "negative"}>{a.kind}</Badge>
+        <Badge variant={a.kind === "positive" ? "positive" : "negative"}>
+          {t(a.kind === "positive" ? "Positive" : "Negative")}
+        </Badge>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button

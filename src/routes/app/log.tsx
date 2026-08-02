@@ -13,7 +13,7 @@ import { cn, formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ActionType } from "@/lib/paws/types";
 import { compressImageFile } from "@/lib/paws/image";
-import { tone } from "@/lib/paws/tone";
+import { tone, toneActionName } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/log")({
   component: LogPage,
@@ -199,7 +199,7 @@ function LogPage() {
                 )}
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium leading-snug">{a.name}</p>
+                  <p className="text-sm font-medium leading-snug">{toneActionName(a.name, a.kind, theme, a.id)}</p>
                   <p className="mt-0.5 text-xs capitalize text-muted-foreground">
                     {a.category}
                   </p>
@@ -215,7 +215,7 @@ function LogPage() {
         {selected ? (
           <Card className="sticky bottom-24 z-10 border-primary/30 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-base">{selected.name}</CardTitle>
+              <CardTitle className="text-base">{toneActionName(selected.name, selected.kind, theme, selected.id)}</CardTitle>
               <CardDescription>
                 Suggested {formatPoints(suggested)}
                 {detail && selected.kind === "positive"

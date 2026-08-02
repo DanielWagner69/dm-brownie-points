@@ -21,7 +21,7 @@ import { downloadText } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ThemeId } from "@/lib/paws/types";
-import { tone } from "@/lib/paws/tone";
+import { tone, toneActionName } from "@/lib/paws/tone";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/settings")({
@@ -220,7 +220,7 @@ function SettingsPage() {
             {(prefTargets.data ?? []).map((a) => (
               <div key={a.id} className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm font-medium leading-snug">{a.name}</p>
+                  <p className="break-words text-sm font-medium leading-snug">{toneActionName(a.name, a.kind, theme, a.id)}</p>
                   <p className="text-[11px] text-muted-foreground capitalize">
                     {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
                     {!a.is_default ? " · custom" : ""}
