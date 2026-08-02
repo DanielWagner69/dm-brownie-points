@@ -17,6 +17,23 @@ export const Route = createFileRoute("/app/log")({
   component: LogPage,
 });
 
+function todayLocalISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function yearsAgoLocalISO(years: number) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function LogPage() {
   const user = useCurrentUser();
   const dash = useDashboard(Boolean(user));
@@ -31,6 +48,8 @@ function LogPage() {
   const [detail, setDetail] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [retrospective, setRetrospective] = useState(false);
+  const [occurredOn, setOccurredOn] = useState(todayLocalISO());
 
   const partnerLabel =
     dash.data?.couple?.partner_name ||
@@ -66,13 +85,25 @@ function LogPage() {
           note,
           photo_data: photo,
           attention_to_detail: detail,
+          occurred_on:
+            retrospective && occurredOn && occurredOn !== todayLocalISO()
+              ? occurredOn
+              : retrospective
+                ? occurredOn
+                : null,
         },
       });
-      toast.success("Logged with soft paws");
+      toast.success(
+        retrospective
+          ? "Logged for that day — still needs partner approval"
+          : "Logged with soft paws",
+      );
       setSelected(null);
       setNote("");
       setDetail(false);
       setPhoto(null);
+      setRetrospective(false);
+      setOccurredOn(todayLocalISO());
       invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not log");
@@ -104,7 +135,7 @@ function LogPage() {
             >
               <p className="text-sm font-semibold text-foreground">What I did</p>
               <p className="mt-1 text-xs leading-snug">
-                Points apply to {direction === "self" ? "you" : "you"} after partner review
+                Points apply to you after partner review
               </p>
             </button>
             <button
@@ -118,9 +149,7 @@ function LogPage() {
               )}
             >
               <p className="text-sm font-semibold text-foreground">What {partnerLabel} did</p>
-              <p className="mt-1 text-xs leading-snug">
-                Points apply to {partnerLabel}
-              </p>
+              <p className="mt-1 text-xs leading-snug">Points apply to {partnerLabel}</p>
             </button>
           </CardContent>
         </Card>
@@ -185,7 +214,9 @@ function LogPage() {
               <CardTitle className="text-base">{selected.name}</CardTitle>
               <CardDescription>
                 Suggested {formatPoints(suggested)}
-                {detail && selected.kind === "positive" ? " (includes Attention to Detail +2)" : ""}
+                {detail && selected.kind === "positive"
+                  ? " (includes Attention to Detail +2)"
+                  : ""}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -200,6 +231,37 @@ function LogPage() {
                   <span className="text-sm font-medium">Attention to Detail</span>
                 </label>
               ) : null}
+
+              <label className="flex min-h-[44px] items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={retrospective}
+                  onChange={(e) => {
+                    setRetrospective(e.target.checked);
+                    if (e.target.checked && !occurredOn) setOccurredOn(todayLocalISO());
+                  }}
+                  className="h-5 w-5 accent-[var(--primary)]"
+                />
+                <span className="text-sm font-medium">Log for a past day</span>
+              </label>
+              {retrospective ? (
+                <div className="space-y-2">
+                  <Label htmlFor="occurred">When did this happen?</Label>
+                  <Input
+                    id="occurred"
+                    type="date"
+                    value={occurredOn}
+                    max={todayLocalISO()}
+                    min={yearsAgoLocalISO(2)}
+                    onChange={(e) => setOccurredOn(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Same as a normal log — still needs partner approval. The date is for your
+                    shared history.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <Label htmlFor="note">Little note</Label>
                 <Textarea
@@ -232,15 +294,15 @@ function LogPage() {
                   />
                 </label>
                 {photo ? (
-                  <img
-                    src={photo}
-                    alt=""
-                    className="h-11 w-11 rounded-xl object-cover"
-                  />
+                  <img src={photo} alt="" className="h-11 w-11 rounded-xl object-cover" />
                 ) : null}
               </div>
               <Button className="w-full" disabled={busy} onClick={() => void submit()}>
-                Log · {direction === "self" ? "What I did" : `What ${partnerLabel} did`}
+                {busy
+                  ? "Logging…"
+                  : `Log · ${direction === "self" ? "What I did" : `What ${partnerLabel} did`}${
+                      retrospective ? " (past day)" : ""
+                    }`}
               </Button>
             </CardContent>
           </Card>

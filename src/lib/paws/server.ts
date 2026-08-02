@@ -505,6 +505,8 @@ export const logAction = createServerFn({ method: "POST" })
       photo_data?: string | null;
       attention_to_detail?: boolean;
       points_override?: number;
+      /** YYYY-MM-DD for retrospective logs (optional). Still needs partner approval. */
+      occurred_on?: string | null;
     }) => d,
   )
   .handler(async ({ context, data }) => {
@@ -537,26 +539,66 @@ export const logAction = createServerFn({ method: "POST" })
     const photo =
       data.photo_data && data.photo_data.length < 400_000 ? data.photo_data : null;
     const actionId = id("la");
+    // Review window always starts from *now* so partner still has time to approve.
     const editable = hoursFromNow(24).toISOString();
     const review = hoursFromNow(48).toISOString();
-    await sql`
-      insert into logged_actions (
-        id, couple_id, action_type_id, action_name, kind, logged_by, applies_to,
-        direction, points, attention_to_detail, note, photo_data, category,
-        status, editable_until, review_until
-      ) values (
-        ${actionId}, ${c.id}, ${at.id}, ${at.name}, ${at.kind}, ${userId}, ${applies_to},
-        ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${at.category},
-        'pending', ${editable}::timestamptz, ${review}::timestamptz
-      )`;
+
+    let occurredAt: string | null = null;
+    if (data.occurred_on && /^\d{4}-\d{2}-\d{2}$/.test(data.occurred_on)) {
+      const day = data.occurred_on;
+      const candidate = new Date(`${day}T12:00:00.000Z`);
+      const tomorrow = new Date();
+      tomorrow.setUTCHours(23, 59, 59, 999);
+      if (Number.isNaN(candidate.getTime())) {
+        throw new Error("That date doesn’t look right");
+      }
+      if (candidate.getTime() > tomorrow.getTime()) {
+        throw new Error("Can’t log something in the future, softie");
+      }
+      // Not older than 2 years — keeps the nest from accidental 1900s
+      const min = new Date();
+      min.setFullYear(min.getFullYear() - 2);
+      if (candidate.getTime() < min.getTime()) {
+        throw new Error("That’s a bit too far back (max 2 years)");
+      }
+      occurredAt = candidate.toISOString();
+    }
+
+    if (occurredAt) {
+      await sql`
+        insert into logged_actions (
+          id, couple_id, action_type_id, action_name, kind, logged_by, applies_to,
+          direction, points, attention_to_detail, note, photo_data, category,
+          status, editable_until, review_until, created_at, updated_at
+        ) values (
+          ${actionId}, ${c.id}, ${at.id}, ${at.name}, ${at.kind}, ${userId}, ${applies_to},
+          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${at.category},
+          'pending', ${editable}::timestamptz, ${review}::timestamptz,
+          ${occurredAt}::timestamptz, now()
+        )`;
+    } else {
+      await sql`
+        insert into logged_actions (
+          id, couple_id, action_type_id, action_name, kind, logged_by, applies_to,
+          direction, points, attention_to_detail, note, photo_data, category,
+          status, editable_until, review_until
+        ) values (
+          ${actionId}, ${c.id}, ${at.id}, ${at.name}, ${at.kind}, ${userId}, ${applies_to},
+          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${at.category},
+          'pending', ${editable}::timestamptz, ${review}::timestamptz
+        )`;
+    }
 
     const logger = await getProfile(userId);
+    const whenNote = occurredAt
+      ? ` (for ${data.occurred_on})`
+      : "";
     await notify(
       partner,
       c.id,
       "action",
       `${logger?.display_name ?? "Your little prince"} logged something`,
-      `${at.name} · ${points > 0 ? "+" : ""}${points} paws — review when you’re ready.`,
+      `${at.name} · ${points > 0 ? "+" : ""}${points} paws${whenNote} — review when you’re ready.`,
     );
     await updateStreak(userId, c.id);
     await evaluateBadges(userId, c.id);

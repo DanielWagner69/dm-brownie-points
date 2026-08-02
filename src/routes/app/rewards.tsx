@@ -485,9 +485,16 @@ function RewardCard({
             <span className="text-xs text-muted-foreground">paws they spend</span>
           </div>
         ) : (
-          <Button size="sm" variant="secondary" disabled={r.point_cost == null} onClick={onBuy}>
-            I bought this
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="soft">
+              {r.point_cost == null
+                ? "No buy-points set yet"
+                : `They earn ${r.point_cost} paws if you buy this`}
+            </Badge>
+            <Button size="sm" variant="secondary" disabled={r.point_cost == null} onClick={onBuy}>
+              I bought this
+            </Button>
+          </div>
         )}
       </div>
     </div>
