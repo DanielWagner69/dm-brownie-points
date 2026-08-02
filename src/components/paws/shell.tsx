@@ -33,10 +33,10 @@ export function AppShell({
   const t = (s: string) => tone(s, theme);
 
   return (
-    <div className="paw-bg mx-auto flex min-h-dvh w-full max-w-lg flex-col">
+    <div className="paw-bg mx-auto flex min-h-dvh w-full max-w-lg flex-col overflow-x-hidden">
       <header className="sticky top-0 z-20 border-b border-border/60 bg-bg/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-2xl bg-primary/15 text-primary">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary">
             <PawPrint className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
@@ -44,37 +44,41 @@ export function AppShell({
               {t("Pawmise")}
             </p>
             {title ? (
-              <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
+              <h1 className="text-lg font-semibold leading-snug tracking-tight break-words text-balance">
+                {title}
+              </h1>
             ) : null}
             {subtitle ? (
-              <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
+              <p className="mt-0.5 text-sm leading-snug text-muted-foreground break-words text-pretty">
+                {subtitle}
+              </p>
             ) : null}
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-x-hidden px-4 py-4">{children}</main>
+      <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-4">{children}</main>
 
-      <nav className="safe-pb sticky bottom-0 z-20 border-t border-border/60 bg-bg/95 px-2 pt-2 backdrop-blur-md">
-        <ul className="grid grid-cols-5 gap-1">
+      <nav className="safe-pb sticky bottom-0 z-20 border-t border-border/60 bg-bg/95 px-1.5 pt-2 backdrop-blur-md">
+        <ul className="grid grid-cols-5 gap-0.5">
           {tabs.map((tab) => {
             const active = tab.exact
               ? pathname === tab.to
               : pathname === tab.to || pathname.startsWith(`${tab.to}/`);
             const Icon = tab.icon;
             return (
-              <li key={tab.to}>
+              <li key={tab.to} className="min-w-0">
                 <Link
                   to={tab.to}
                   className={cn(
-                    "flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[11px] font-medium transition-colors",
+                    "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 py-1 text-center text-[10px] font-medium leading-tight transition-colors",
                     active
                       ? "bg-primary/12 text-primary"
                       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                 >
-                  <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} />
-                  {t(tab.label)}
+                  <Icon className="h-5 w-5 shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+                  <span className="line-clamp-2 w-full break-words px-0.5">{t(tab.label)}</span>
                 </Link>
               </li>
             );

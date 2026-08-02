@@ -192,7 +192,7 @@ function LogPage() {
                 type="button"
                 onClick={() => setSelected(a)}
                 className={cn(
-                  "flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition-colors",
+                  "flex w-full min-w-0 items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition-colors",
                   active
                     ? "border-primary bg-primary/10"
                     : "border-border bg-card hover:bg-muted/40",

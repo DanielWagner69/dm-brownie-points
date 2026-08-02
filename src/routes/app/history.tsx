@@ -119,11 +119,11 @@ function HistoryPage() {
             return (
               <article
                 key={a.id}
-                className="rounded-3xl border border-border bg-card p-4 shadow-sm"
+                className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium leading-snug">{a.action_name}</p>
+                    <p className="font-medium leading-snug break-words">{a.action_name}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {a.logger_name} → {a.applies_name} · {a.category} ·{" "}
                       {new Date(a.created_at).toLocaleString()}

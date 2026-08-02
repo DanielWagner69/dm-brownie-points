@@ -340,7 +340,7 @@ function OnboardingPage() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card/80 px-3 py-2.5">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Signed in as</p>
-          <p className="truncate text-sm font-medium">{accountLabel}</p>
+          <p className="break-words text-sm font-medium leading-snug">{accountLabel}</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={() => void switchAccount()}>
           <LogOut className="h-3.5 w-3.5" />

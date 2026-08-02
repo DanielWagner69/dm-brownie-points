@@ -148,7 +148,7 @@ function SettingsPage() {
                     invalidate();
                   }}
                   className={cn(
-                    "flex min-h-[80px] flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-medium",
+                    "flex min-h-[80px] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs font-medium leading-snug break-words",
                     active
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-surface text-muted-foreground",
@@ -218,9 +218,9 @@ function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {(prefTargets.data ?? []).map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-2">
+              <div key={a.id} className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{a.name}</p>
+                  <p className="break-words text-sm font-medium leading-snug">{a.name}</p>
                   <p className="text-[11px] text-muted-foreground capitalize">
                     {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
                     {!a.is_default ? " · custom" : ""}

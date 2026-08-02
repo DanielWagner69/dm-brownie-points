@@ -270,7 +270,7 @@ function HomePage() {
                   className="flex items-center justify-between gap-2 rounded-2xl bg-muted/40 px-3 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{a.action_name}</p>
+                    <p className="break-words text-sm font-medium leading-snug">{a.action_name}</p>
                     <p className="text-xs text-muted-foreground">
                       {a.logger_name} · {a.status}
                     </p>
@@ -288,7 +288,7 @@ function HomePage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3 pb-2">
+        <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2">
           <Button asChild className="h-14">
             <Link to="/app/log">
               <PawPrint className="h-4 w-4" />
