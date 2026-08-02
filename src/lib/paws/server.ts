@@ -6,8 +6,11 @@ import {
   STARTER_REWARDS,
   BADGE_DEFS,
   PREFERENCE_SAMPLES,
+  REMOVED_DEFAULT_ACTIONS,
+  RENAMED_DEFAULT_ACTIONS,
   type BadgeStats,
 } from "./defaults";
+
 import type {
   ActionType,
   Balance,
@@ -80,18 +83,59 @@ async function seedDefaults(coupleId: string, userId: string) {
   const sql = await getSql();
   const existing = await sql<{ n: number }>`
     select count(*)::int as n from action_types where couple_id = ${coupleId}`;
-  if ((existing[0]?.n ?? 0) > 0) return;
-
-  for (const a of DEFAULT_ACTIONS) {
-    await sql`
-      insert into action_types (couple_id, name, kind, base_points, category, is_default, created_by)
-      values (${coupleId}, ${a.name}, ${a.kind}, ${a.base_points}, ${a.category}, true, ${userId})`;
+  if ((existing[0]?.n ?? 0) === 0) {
+    for (const a of DEFAULT_ACTIONS) {
+      await sql`
+        insert into action_types (couple_id, name, kind, base_points, category, is_default, created_by)
+        values (${coupleId}, ${a.name}, ${a.kind}, ${a.base_points}, ${a.category}, true, ${userId})`;
+    }
+  } else {
+    await syncDefaultActions(coupleId, userId);
   }
 
-  for (const r of STARTER_REWARDS) {
+  const rewardCount = await sql<{ n: number }>`
+    select count(*)::int as n from rewards where couple_id = ${coupleId}`;
+  if ((rewardCount[0]?.n ?? 0) === 0) {
+    for (const r of STARTER_REWARDS) {
+      await sql`
+        insert into rewards (id, couple_id, created_by, name, description, repeatable, kind)
+        values (${id("rw")}, ${coupleId}, ${userId}, ${r.name}, ${r.description}, true, 'gesture')`;
+    }
+  }
+}
+
+/** Keep existing nests in sync with the current default action catalog. */
+async function syncDefaultActions(coupleId: string, userId: string) {
+  const sql = await getSql();
+
+  for (const [from, to] of Object.entries(RENAMED_DEFAULT_ACTIONS)) {
     await sql`
-      insert into rewards (id, couple_id, created_by, name, description, repeatable, kind)
-      values (${id("rw")}, ${coupleId}, ${userId}, ${r.name}, ${r.description}, true, 'gesture')`;
+      update action_types set name = ${to}
+      where couple_id = ${coupleId} and name = ${from} and archived = false`;
+  }
+
+  for (const name of REMOVED_DEFAULT_ACTIONS) {
+    await sql`
+      update action_types set archived = true
+      where couple_id = ${coupleId} and name = ${name}`;
+  }
+
+  const rows = await sql<{ name: string }>`
+    select name from action_types where couple_id = ${coupleId} and archived = false`;
+  const have = new Set(rows.map((r) => r.name));
+
+  for (const a of DEFAULT_ACTIONS) {
+    if (have.has(a.name)) {
+      // Keep points in line for known defaults (safe for catalog items)
+      await sql`
+        update action_types
+        set base_points = ${a.base_points}, kind = ${a.kind}, category = ${a.category}
+        where couple_id = ${coupleId} and name = ${a.name} and is_default = true and archived = false`;
+    } else {
+      await sql`
+        insert into action_types (couple_id, name, kind, base_points, category, is_default, created_by)
+        values (${coupleId}, ${a.name}, ${a.kind}, ${a.base_points}, ${a.category}, true, ${userId})`;
+    }
   }
 }
 
@@ -427,6 +471,7 @@ export const listActionTypes = createServerFn({ method: "GET" })
     const { userId } = context as Ctx;
     const c = await getActiveCouple(userId);
     if (!c || !c.user_b) return [] as ActionType[];
+    await syncDefaultActions(c.id, userId);
     const sql = await getSql();
     const partner = partnerIdOf(c, userId);
     return sql<ActionType>`
@@ -446,6 +491,7 @@ export const listMyPreferenceTargets = createServerFn({ method: "GET" })
     const { userId } = context as Ctx;
     const c = await getActiveCouple(userId);
     if (!c) return [] as (ActionType & { my_points: number | null })[];
+    await syncDefaultActions(c.id, userId);
     const sql = await getSql();
     const rows = await sql<ActionType & { my_points: number | null }>`
       select at.id, at.couple_id, at.name, at.kind, at.base_points, at.category,

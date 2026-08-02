@@ -22,16 +22,16 @@ export const DEFAULT_ACTIONS: DefaultAction[] = [
   },
   { name: "Cooked a meal", kind: "positive", base_points: 2, category: "care" },
   {
-    name: "Spontaneous thoughtful message / voice note",
+    name: "Random thoughtful message or voice note",
     kind: "positive",
     base_points: 1,
     category: "kindness",
   },
   {
-    name: "Encouraged rest when they were clearly exhausted",
+    name: "Surprise Chocolate / Snacks",
     kind: "positive",
-    base_points: 2,
-    category: "rest",
+    base_points: 1,
+    category: "care",
   },
   {
     name: "Remembered something small that was only mentioned once",
@@ -59,10 +59,16 @@ export const DEFAULT_ACTIONS: DefaultAction[] = [
     category: "words",
   },
   {
-    name: "Negative comment (coming from a bad place)",
+    name: "Mean Comment (Intention to hurt partner)",
     kind: "negative",
     base_points: -5,
     category: "words",
+  },
+  {
+    name: "Poor Gentleman (Forgot to tuck chair, pour water, open door, help with jacket, didn't wait etc.)",
+    kind: "negative",
+    base_points: -1,
+    category: "chivalry",
   },
   {
     name: "Was not open with relevant information that could affect the partner",
@@ -80,7 +86,7 @@ export const DEFAULT_ACTIONS: DefaultAction[] = [
   {
     name: "Repeated behaviour after being told it bothered them",
     kind: "negative",
-    base_points: -2,
+    base_points: -3,
     category: "respect",
   },
   {
@@ -90,6 +96,17 @@ export const DEFAULT_ACTIONS: DefaultAction[] = [
     category: "conflict",
   },
 ];
+
+/** Default action names that should be archived on existing nests */
+export const REMOVED_DEFAULT_ACTIONS = [
+  "Encouraged rest when they were clearly exhausted",
+];
+
+/** Old default names → new name (rename in place for existing couples) */
+export const RENAMED_DEFAULT_ACTIONS: Record<string, string> = {
+  "Spontaneous thoughtful message / voice note": "Random thoughtful message or voice note",
+  "Negative comment (coming from a bad place)": "Mean Comment (Intention to hurt partner)",
+};
 
 export const STARTER_REWARDS = [
   { name: "Breakfast in bed", description: "Warm tray, soft pillows, zero rush." },
@@ -118,10 +135,13 @@ export const PREFERENCE_SAMPLES = [
   "Gift flowers",
   "Thoughtful card",
   "Made a plan so the other person didn’t have to think",
-  "Encouraged rest when they were clearly exhausted",
+  "Random thoughtful message or voice note",
+  "Surprise Chocolate / Snacks",
   "Remembered something small that was only mentioned once",
   "Took care of something practical without being asked",
   "Silly sasiska comment (not from a bad place, just not thought through)",
+  "Mean Comment (Intention to hurt partner)",
+  "Poor Gentleman (Forgot to tuck chair, pour water, open door, help with jacket, didn't wait etc.)",
   "Left on read for an unreasonable amount of time",
   "Brought up unrelated past issues during an argument",
 ];
