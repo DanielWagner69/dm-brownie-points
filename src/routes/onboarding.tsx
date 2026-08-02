@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { FullPageLoading } from "@/components/paws/loading";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
@@ -41,19 +42,30 @@ function OnboardingPage() {
   const [busy, setBusy] = useState(false);
   const [ratings, setRatings] = useState<Record<number, number>>({});
 
+  // All hooks must run before any conditional return (avoids React error #300).
+  const steps = useMemo(
+    () =>
+      [
+        { id: "profile", label: "You" },
+        { id: "pairing", label: "Pair" },
+        { id: "preferences", label: "Taste" },
+      ] as const,
+    [],
+  );
+
   useEffect(() => {
     if (!me.data) return;
     setName(me.data.profile.display_name || me.data.authName || "");
     setBio(me.data.profile.bio || "");
     setNickname(me.data.profile.partner_nickname || "");
     const s = me.data.profile.onboarding_step;
-    if (s === "preferences" || s === "pairing" || s === "profile") setStep(s as typeof step);
+    if (s === "preferences" || s === "pairing" || s === "profile") setStep(s);
     if (me.data.couple && !me.data.couple.user_b) {
       setInvite(me.data.couple.invite_code);
       setStep("pairing");
     }
     if (me.data.couple?.user_b && me.data.profile.onboarding_step === "done") {
-      nav({ to: "/app" });
+      void nav({ to: "/app" });
     }
   }, [me.data, nav]);
 
@@ -72,12 +84,8 @@ function OnboardingPage() {
     setRatings(init);
   }, [prefsQuery.data]);
 
-  if (isPending || me.isLoading) {
-    return (
-      <main className="grid min-h-dvh place-items-center bg-bg">
-        <div className="h-10 w-48 animate-pulse rounded-2xl bg-muted" />
-      </main>
-    );
+  if (isPending || (Boolean(user) && me.isLoading && !me.data)) {
+    return <FullPageLoading message="Opening soft setup…" />;
   }
   if (!user) return <RedirectToSignIn />;
   if (me.data?.couple?.user_b && me.data.profile.onboarding_step === "done") {
@@ -124,7 +132,7 @@ function OnboardingPage() {
   async function join() {
     setBusy(true);
     try {
-      await joinWithCode({ data: joinCode });
+      await joinWithCode({ data: joinCode.trim().toUpperCase() });
       toast.success("Paws linked — welcome to your shared little world");
       setStep("preferences");
       await me.refetch();
@@ -145,28 +153,20 @@ function OnboardingPage() {
       if (payload.length) await savePreferences({ data: payload });
       await updateProfile({ data: { onboarding_step: "done" } });
       toast.success("Preferences saved — soft mode engaged");
-      if (me.data?.couple?.user_b) nav({ to: "/app" });
-      else {
+      const fresh = await getMe();
+      await me.refetch();
+      if (fresh.couple?.user_b) {
+        void nav({ to: "/app" });
+      } else {
         setStep("pairing");
         toast.message("Waiting for your person to join with the code");
       }
-      await me.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save prefs");
     } finally {
       setBusy(false);
     }
   }
-
-  const steps = useMemo(
-    () =>
-      [
-        { id: "profile", label: "You" },
-        { id: "pairing", label: "Pair" },
-        { id: "preferences", label: "Taste" },
-      ] as const,
-    [],
-  );
 
   return (
     <main className="paw-bg mx-auto min-h-dvh w-full max-w-lg px-4 py-6">
@@ -298,6 +298,7 @@ function OnboardingPage() {
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 placeholder="PAWXXXXX"
                 className="text-center font-mono tracking-widest"
+                autoCapitalize="characters"
               />
               <Button
                 variant="secondary"
@@ -305,7 +306,7 @@ function OnboardingPage() {
                 disabled={busy || joinCode.length < 6}
                 onClick={() => void join()}
               >
-                Join little world
+                {busy ? "Linking paws…" : "Join little world"}
               </Button>
             </CardContent>
           </Card>
@@ -339,10 +340,7 @@ function OnboardingPage() {
               <div className="h-24 animate-pulse rounded-2xl bg-muted" />
             ) : (
               (prefsQuery.data ?? []).map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-2xl border border-border bg-surface p-3"
-                >
+                <div key={a.id} className="rounded-2xl border border-border bg-surface p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium leading-snug">{a.name}</p>
