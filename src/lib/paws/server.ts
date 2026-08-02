@@ -79,6 +79,60 @@ function partnerIdOf(
   return null;
 }
 
+
+function buildTreatTips(
+  balance: number,
+  items: { name: string; point_cost: number }[],
+): { summary: string; items: { name: string; cost: number }[]; total: number }[] {
+  if (balance <= 0 || items.length === 0) return [];
+  const affordable = items.filter((i) => i.point_cost <= balance);
+  if (affordable.length === 0) {
+    const cheapest = [...items].sort((a, b) => a.point_cost - b.point_cost)[0];
+    if (!cheapest) return [];
+    return [
+      {
+        summary: `You're ${cheapest.point_cost - balance} BP short of “${cheapest.name}”`,
+        items: [{ name: cheapest.name, cost: cheapest.point_cost }],
+        total: cheapest.point_cost,
+      },
+    ];
+  }
+  const tips: { summary: string; items: { name: string; cost: number }[]; total: number }[] = [];
+  // Single-item tips (up to 3)
+  for (const it of affordable.slice(0, 3)) {
+    tips.push({
+      summary: `You can claim “${it.name}” (${it.point_cost} BP)`,
+      items: [{ name: it.name, cost: it.point_cost }],
+      total: it.point_cost,
+    });
+  }
+  // Greedy combination of cheapest affordable items
+  let rem = balance;
+  const combo: { name: string; cost: number }[] = [];
+  for (const it of affordable) {
+    if (it.point_cost <= rem) {
+      combo.push({ name: it.name, cost: it.point_cost });
+      rem -= it.point_cost;
+      if (combo.length >= 3) break;
+    }
+  }
+  if (combo.length >= 2) {
+    const total = combo.reduce((s, x) => s + x.cost, 0);
+    tips.push({
+      summary: `Or stack ${combo.map((c) => c.name).join(" + ")} (${total} BP total)`,
+      items: combo,
+      total,
+    });
+  }
+  // Deduplicate by summary
+  const seen = new Set<string>();
+  return tips.filter((t) => {
+    if (seen.has(t.summary)) return false;
+    seen.add(t.summary);
+    return true;
+  }).slice(0, 4);
+}
+
 async function seedDefaults(coupleId: string, userId: string) {
   const sql = await getSql();
   const existing = await sql<{ n: number }>`
@@ -493,7 +547,8 @@ export const listMyPreferenceTargets = createServerFn({ method: "GET" })
     if (!c) return [] as (ActionType & { my_points: number | null })[];
     await syncDefaultActions(c.id, userId);
     const sql = await getSql();
-    const rows = await sql<ActionType & { my_points: number | null }>`
+    // Full catalog: all defaults + custom actions for this nest (matches Log list)
+    return sql<ActionType & { my_points: number | null }>`
       select at.id, at.couple_id, at.name, at.kind, at.base_points, at.category,
              at.is_default, at.archived, at.base_points as preferred_points,
              ap.preferred_points as my_points
@@ -501,9 +556,7 @@ export const listMyPreferenceTargets = createServerFn({ method: "GET" })
       left join action_preferences ap
         on ap.action_type_id = at.id and ap.user_id = ${userId}
       where at.couple_id = ${c.id} and at.archived = false
-      order by at.kind desc, at.name`;
-    const set = new Set(PREFERENCE_SAMPLES);
-    return rows.filter((r) => set.has(r.name));
+      order by at.kind desc, at.base_points desc, at.name`;
   });
 
 export const upsertActionType = createServerFn({ method: "POST" })
@@ -684,10 +737,12 @@ export const reviewAction = createServerFn({ method: "POST" })
           reviewed_at = now(), reviewed_by = ${userId}, updated_at = now()
         where id = ${a.id}`;
     } else if (data.decision === "modify") {
+      const proposed = data.points ?? a.points;
+      // Partner proposes a new score — original logger must agree
       await sql`
         update logged_actions set
-          status = 'modified',
-          points = ${data.points ?? a.points},
+          status = 'modification_pending',
+          proposed_points = ${proposed},
           category = ${data.category ?? a.category},
           note = ${data.note ?? a.note},
           reviewed_at = now(), reviewed_by = ${userId}, updated_at = now()
@@ -696,18 +751,79 @@ export const reviewAction = createServerFn({ method: "POST" })
       await sql`
         update logged_actions set
           status = 'accepted',
+          proposed_points = null,
           reviewed_at = now(), reviewed_by = ${userId}, updated_at = now()
         where id = ${a.id}`;
     }
     const reviewer = await getProfile(userId);
+    const verb =
+      data.decision === "decline"
+        ? "gently declined"
+        : data.decision === "modify"
+          ? `proposed ${data.points ?? a.points} Brownie Points for`
+          : "accepted";
     await notify(
       a.logged_by,
       c.id,
       "review",
-      "A soft review landed",
-      `${reviewer?.display_name ?? "Partner"} ${data.decision === "decline" ? "gently declined" : data.decision === "modify" ? "tweaked" : "accepted"} “${a.action_name}”.`,
+      data.decision === "modify" ? "Point tweak needs your yes" : "A soft review landed",
+      data.decision === "modify"
+        ? `${reviewer?.display_name ?? "Partner"} wants “${a.action_name}” at ${data.points ?? a.points} BP — both must agree.`
+        : `${reviewer?.display_name ?? "Partner"} ${verb} “${a.action_name}”.`,
     );
     await evaluateBadges(userId, c.id);
+    return { ok: true };
+  });
+
+export const resolveModification = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { id: string; decision: "accept" | "reject" }) => d)
+  .handler(async ({ context, data }) => {
+    const { userId } = context as Ctx;
+    const c = await getActiveCouple(userId);
+    if (!c?.user_b) throw new Error("Not paired");
+    const sql = await getSql();
+    const rows = await sql<LoggedAction>`
+      select * from logged_actions where id = ${data.id} and couple_id = ${c.id}`;
+    const a = rows[0];
+    if (!a) throw new Error("Action gone");
+    if (a.logged_by !== userId) throw new Error("Only the person who logged it can confirm the tweak");
+    if (a.status !== "modification_pending") throw new Error("No tweak waiting");
+    const partner = partnerIdOf(c, userId)!;
+    if (data.decision === "accept") {
+      const pts = a.proposed_points ?? a.points;
+      await sql`
+        update logged_actions set
+          status = 'modified',
+          points = ${pts},
+          proposed_points = null,
+          updated_at = now()
+        where id = ${a.id}`;
+      await notify(
+        partner,
+        c.id,
+        "review",
+        "Tweak agreed",
+        `“${a.action_name}” is now ${pts} Brownie Points — you both agreed.`,
+      );
+    } else {
+      // Reject modification → back to pending for partner to re-review original
+      await sql`
+        update logged_actions set
+          status = 'pending',
+          proposed_points = null,
+          reviewed_at = null,
+          reviewed_by = null,
+          updated_at = now()
+        where id = ${a.id}`;
+      await notify(
+        partner,
+        c.id,
+        "review",
+        "Tweak declined",
+        `They preferred the original score on “${a.action_name}”. Review again if you like.`,
+      );
+    }
     return { ok: true };
   });
 
@@ -1117,9 +1233,11 @@ export const getDashboard = createServerFn({ method: "GET" })
     let streak = 0;
     let badges: Dashboard["badges"] = [];
     let pendingReviews: LoggedAction[] = [];
+    let pendingModifications: LoggedAction[] = [];
     let pendingClaims: RewardClaim[] = [];
     let recent: LoggedAction[] = [];
-    let weeklySummary = "Pair up to open your shared little notebook of Brownie Points.";
+    let treatTips: Dashboard["treatTips"] = [];
+    let weeklySummary = "";
     let notifications: Dashboard["notifications"] = [];
 
     if (coupleRow) {
@@ -1157,6 +1275,27 @@ export const getDashboard = createServerFn({ method: "GET" })
             and status = 'pending'
             and archived = false
           order by created_at desc`;
+        pendingModifications = await sql<LoggedAction>`
+          select la.*, pl.display_name as logger_name
+          from logged_actions la
+          left join profiles pl on pl.user_id = la.logged_by
+          where la.couple_id = ${coupleRow.id}
+            and la.logged_by = ${userId}
+            and la.status = 'modification_pending'
+            and la.archived = false
+          order by la.updated_at desc`;
+        // Treat spend tips from partner's gesture list (you claim their priced treats? 
+        // Spec: tips for what YOU can purchase = YOUR treat list with costs set)
+        const spendable = await sql<{ name: string; point_cost: number }>`
+          select name, point_cost from rewards
+          where couple_id = ${coupleRow.id}
+            and created_by = ${userId}
+            and kind = 'gesture'
+            and archived = false
+            and point_cost is not null
+            and point_cost > 0
+          order by point_cost asc`;
+        treatTips = buildTreatTips(balance.current, spendable);
         pendingClaims = await sql<RewardClaim>`
           select rc.*, r.name as reward_name, p.display_name as claimer_name
           from reward_claims rc
@@ -1202,8 +1341,10 @@ export const getDashboard = createServerFn({ method: "GET" })
       streak,
       badges,
       pendingReviews,
+      pendingModifications,
       pendingClaims,
       recent,
+      treatTips,
       weeklySummary,
       notifications,
     };

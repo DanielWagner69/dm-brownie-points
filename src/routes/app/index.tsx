@@ -1,12 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
 import {
   Award,
-  Bell,
   Flame,
+  Gift,
   HeartHandshake,
   PawPrint,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/paws/shell";
@@ -14,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
-import { markNotificationsRead, resolveClaim, reviewAction } from "@/lib/paws/server";
+import { resolveClaim, resolveModification, reviewAction } from "@/lib/paws/server";
 import { formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { tone } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/")({
   component: HomePage,
@@ -28,21 +27,17 @@ function HomePage() {
   const invalidate = useInvalidatePaws();
   const d = dash.data;
 
-  useEffect(() => {
-    if (d?.notifications.some((n) => !n.read)) {
-      void markNotificationsRead().then(() => invalidate());
-    }
-  }, [d?.notifications, invalidate]);
-
   if (!d) return null;
 
+  const theme = d.profile.theme;
+  const t = (s: string) => tone(s, theme);
   const partnerLabel =
     d.couple?.partner_name || d.profile.partner_nickname || "your person";
 
   return (
     <AppShell
-      title={`Hey ${d.profile.display_name}`}
-      subtitle={`Soft notes with ${partnerLabel}`}
+      title={`${t("Hey")} ${d.profile.display_name}`}
+      subtitle={`${t("Soft notes with")} ${partnerLabel}`}
     >
       <div className="space-y-4">
         <Card className="overflow-hidden">
@@ -50,7 +45,7 @@ function HomePage() {
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  Brownie Points balance
+                  {t("Brownie Points balance")}
                 </p>
                 <p
                   className={`mt-1 text-4xl font-semibold tracking-tight tabular ${
@@ -60,14 +55,14 @@ function HomePage() {
                   {formatPoints(d.balance.current)}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Positive {formatPoints(d.balance.lifetime_positive)} · Negative{" "}
+                  {t("Positive")} {formatPoints(d.balance.lifetime_positive)} · {t("Negative")}{" "}
                   {d.balance.lifetime_negative} · Spent {d.balance.points_spent} BP
                 </p>
               </div>
               <div className="rounded-2xl bg-primary/10 px-3 py-2 text-center">
                 <Flame className="mx-auto h-5 w-5 text-primary" />
                 <p className="mt-1 text-lg font-semibold tabular">{d.streak}</p>
-                <p className="text-[10px] text-muted-foreground">day streak</p>
+                <p className="text-[10px] text-muted-foreground">{t("day streak")}</p>
               </div>
             </div>
             {d.partnerBalance ? (
@@ -76,104 +71,86 @@ function HomePage() {
                 <span className="font-medium text-foreground tabular">
                   {formatPoints(d.partnerBalance.current)}
                 </span>{" "}
-                Brownie Points — not a scoreboard, just a soft mirror.
+                {t("Brownie Points — not a scoreboard, just a soft mirror.")}
+              </p>
+            ) : null}
+
+            {d.treatTips && d.treatTips.length > 0 ? (
+              <div className="mt-4 space-y-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                  <Gift className="h-3.5 w-3.5" />
+                  What you could claim
+                </p>
+                <ul className="space-y-1.5">
+                  {d.treatTips.map((tip) => (
+                    <li key={tip.summary} className="text-sm leading-snug text-muted-foreground">
+                      {tip.summary}
+                    </li>
+                  ))}
+                </ul>
+                <Button asChild size="sm" variant="secondary" className="mt-1">
+                  <Link to="/app/rewards">{t("Treats")}</Link>
+                </Button>
+              </div>
+            ) : d.balance.current > 0 ? (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Add treats on your list and have {partnerLabel} set the costs to see spend tips here.
               </p>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-primary" />
-              This week’s little letter
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm leading-relaxed text-muted-foreground">{d.weeklySummary}</p>
-          </CardContent>
-        </Card>
-
-        {d.pendingReviews.length > 0 ? (
+        {(d.pendingModifications?.length ?? 0) > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Waiting for your soft review</CardTitle>
-              <CardDescription>48h to accept, tweak, or gently decline.</CardDescription>
+              <CardTitle className="text-base">Your partner tweaked a score</CardTitle>
+              <CardDescription>
+                Both of you must agree on Brownie Points before it sticks.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {d.pendingReviews.map((a) => (
+              {d.pendingModifications.map((a) => (
                 <div key={a.id} className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{a.action_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {a.direction === "self" ? "They did" : "You did"} ·{" "}
-                        <span className="tabular">{formatPoints(a.points)}</span>
-                      </p>
-                      {a.note ? (
-                        <p className="mt-1 text-sm text-muted-foreground">{a.note}</p>
-                      ) : null}
-                    </div>
-                    <Badge variant={a.kind === "positive" ? "positive" : "negative"}>
-                      {a.kind}
-                    </Badge>
-                  </div>
+                  <p className="text-sm font-medium">{a.action_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    You logged {formatPoints(a.points)} · they propose{" "}
+                    <span className="font-semibold text-foreground tabular">
+                      {formatPoints(a.proposed_points ?? a.points)}
+                    </span>
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       onClick={async () => {
                         try {
-                          await reviewAction({ data: { id: a.id, decision: "accept" } });
-                          toast.success("Accepted with love");
-                          invalidate();
-                        } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Failed");
-                        }
-                      }}
-                    >
-                      Accept
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={async () => {
-                        const pts = window.prompt("New Brownie Points?", String(a.points));
-                        if (pts == null) return;
-                        try {
-                          await reviewAction({
-                            data: {
-                              id: a.id,
-                              decision: "modify",
-                              points: Number(pts),
-                            },
+                          await resolveModification({
+                            data: { id: a.id, decision: "accept" },
                           });
-                          toast.success("Tweaked gently");
+                          toast.success("You both agreed on the points");
                           invalidate();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Failed");
                         }
                       }}
                     >
-                      Modify
+                      Agree to tweak
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={async () => {
-                        const note = window.prompt("A gentle note for declining?");
-                        if (!note?.trim()) return;
                         try {
-                          await reviewAction({
-                            data: { id: a.id, decision: "decline", decline_note: note },
+                          await resolveModification({
+                            data: { id: a.id, decision: "reject" },
                           });
-                          toast.message("Declined and archived");
+                          toast.message("Kept original — back for their review");
                           invalidate();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Failed");
                         }
                       }}
                     >
-                      Decline
+                      Keep original
                     </Button>
                   </div>
                 </div>
@@ -182,10 +159,29 @@ function HomePage() {
           </Card>
         ) : null}
 
+        {d.pendingReviews.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("Waiting for your soft review")}</CardTitle>
+              <CardDescription>{t("48h to accept, tweak, or gently decline.")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {d.pendingReviews.map((a) => (
+                <ReviewActions
+                  key={a.id}
+                  a={a}
+                  t={t}
+                  onDone={invalidate}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
         {d.pendingClaims.length > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Reward claims to approve</CardTitle>
+              <CardTitle className="text-base">{t("Reward claims to approve")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {d.pendingClaims.map((c) => (
@@ -208,7 +204,7 @@ function HomePage() {
                         invalidate();
                       }}
                     >
-                      Approve
+                      {t("Approve")}
                     </Button>
                     <Button
                       size="sm"
@@ -219,7 +215,7 @@ function HomePage() {
                         invalidate();
                       }}
                     >
-                      Cancel
+                      {t("Cancel")}
                     </Button>
                   </div>
                 </div>
@@ -233,7 +229,7 @@ function HomePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Award className="h-4 w-4 text-primary" />
-                Soft badges
+                {t("Soft badges")}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
@@ -248,15 +244,15 @@ function HomePage() {
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Recent Brownie Points</CardTitle>
+            <CardTitle className="text-base">{t("Recent Brownie Points")}</CardTitle>
             <Button asChild size="sm" variant="ghost">
-              <Link to="/app/history">Full story</Link>
+              <Link to="/app/history">{t("Full story")}</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
             {d.recent.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nothing logged yet. Go log a little Brownie Point.
+                {t("Nothing logged yet. Go log a little Brownie Point.")}
               </p>
             ) : (
               d.recent.slice(0, 6).map((a) => (
@@ -283,40 +279,108 @@ function HomePage() {
           </CardContent>
         </Card>
 
-        {d.notifications.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Bell className="h-4 w-4 text-primary" />
-                Soft pings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {d.notifications.slice(0, 5).map((n) => (
-                <div key={n.id} className="rounded-2xl border border-border/70 px-3 py-2">
-                  <p className="text-sm font-medium">{n.title}</p>
-                  <p className="text-xs text-muted-foreground">{n.body}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
-
         <div className="grid grid-cols-2 gap-3 pb-2">
           <Button asChild className="h-14">
             <Link to="/app/log">
               <PawPrint className="h-4 w-4" />
-              Log Brownie Points
+              {t("Log Brownie Points")}
             </Link>
           </Button>
           <Button asChild variant="secondary" className="h-14">
             <Link to="/app/rewards">
               <HeartHandshake className="h-4 w-4" />
-              Treats
+              {t("Treats")}
             </Link>
           </Button>
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function ReviewActions({
+  a,
+  t,
+  onDone,
+}: {
+  a: {
+    id: string;
+    action_name: string;
+    direction: string;
+    points: number;
+    note: string;
+    kind: string;
+  };
+  t: (s: string) => string;
+  onDone: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{a.action_name}</p>
+          <p className="text-xs text-muted-foreground">
+            {a.direction === "self" ? "They did" : "You did"} ·{" "}
+            <span className="tabular">{formatPoints(a.points)}</span>
+          </p>
+          {a.note ? <p className="mt-1 text-sm text-muted-foreground">{a.note}</p> : null}
+        </div>
+        <Badge variant={a.kind === "positive" ? "positive" : "negative"}>{a.kind}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          onClick={async () => {
+            try {
+              await reviewAction({ data: { id: a.id, decision: "accept" } });
+              toast.success(t("Accepted with love"));
+              onDone();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Failed");
+            }
+          }}
+        >
+          {t("Accept")}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={async () => {
+            const pts = window.prompt("Propose new Brownie Points?", String(a.points));
+            if (pts == null) return;
+            try {
+              await reviewAction({
+                data: { id: a.id, decision: "modify", points: Number(pts) },
+              });
+              toast.success("Sent to them for agreement");
+              onDone();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Failed");
+            }
+          }}
+        >
+          {t("Modify")}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            const note = window.prompt("A gentle note for declining?");
+            if (!note?.trim()) return;
+            try {
+              await reviewAction({
+                data: { id: a.id, decision: "decline", decline_note: note },
+              });
+              toast.message("Declined and archived");
+              onDone();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Failed");
+            }
+          }}
+        >
+          {t("Decline")}
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -62,5 +62,8 @@ export function useInvalidatePaws() {
     void qc.invalidateQueries({ queryKey: ["action-types"] });
     void qc.invalidateQueries({ queryKey: ["history"] });
     void qc.invalidateQueries({ queryKey: ["rewards"] });
+    void qc.invalidateQueries({ queryKey: ["pref-targets"] });
+    void qc.invalidateQueries({ queryKey: ["pref-targets-settings"] });
+    void qc.invalidateQueries({ queryKey: ["me"] });
   }, [qc]);
 }

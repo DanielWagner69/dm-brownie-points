@@ -133,6 +133,27 @@
   --danger-fg: #2a0a10;
 }
 
+/* Naughty — deep plum + hot pink, flirty energy */
+[data-theme="naughty"] {
+  --bg: #1a0a14;
+  --surface: #2a1220;
+  --card: #351828;
+  --fg: #ffe8f2;
+  --fg-muted: #d4a0b8;
+  --muted-bg: #3d1e30;
+  --border: color-mix(in oklab, #ffe8f2 14%, transparent);
+  --primary: #e84a8a;
+  --primary-fg: #1a0a14;
+  --secondary: #3d1e30;
+  --secondary-fg: #ffe8f2;
+  --accent: #ff7ab0;
+  --accent-fg: #1a0a14;
+  --ring: #e84a8a;
+  --positive: #7ddea0;
+  --danger: #ff6b8a;
+  --danger-fg: #1a0a14;
+}
+
 @layer base {
   * {
     border-color: var(--border);

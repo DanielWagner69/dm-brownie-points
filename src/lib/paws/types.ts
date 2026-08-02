@@ -1,4 +1,4 @@
-export type ThemeId = "warm" | "dusk" | "blossom" | "burgundy" | "flight";
+export type ThemeId = "warm" | "dusk" | "blossom" | "burgundy" | "flight" | "naughty";
 
 export type Profile = {
   user_id: string;
@@ -39,6 +39,7 @@ export type ActionType = {
   is_default: boolean;
   archived: boolean;
   preferred_points: number | null;
+  my_points?: number | null;
 };
 
 export type LoggedAction = {
@@ -51,11 +52,12 @@ export type LoggedAction = {
   applies_to: string;
   direction: "self" | "partner";
   points: number;
+  proposed_points?: number | null;
   attention_to_detail: boolean;
   note: string;
   photo_data: string | null;
   category: string;
-  status: "pending" | "accepted" | "declined" | "modified";
+  status: "pending" | "accepted" | "declined" | "modified" | "modification_pending";
   decline_note: string | null;
   editable_until: string;
   review_until: string;
@@ -109,6 +111,12 @@ export type Badge = {
   earned_at: string;
 };
 
+export type TreatTip = {
+  summary: string;
+  items: { name: string; cost: number }[];
+  total: number;
+};
+
 export type Dashboard = {
   profile: Profile;
   couple: Couple | null;
@@ -118,8 +126,11 @@ export type Dashboard = {
   streak: number;
   badges: Badge[];
   pendingReviews: LoggedAction[];
+  /** Modifications your partner proposed — you must agree */
+  pendingModifications: LoggedAction[];
   pendingClaims: RewardClaim[];
   recent: LoggedAction[];
+  treatTips: TreatTip[];
   weeklySummary: string;
   notifications: { id: string; title: string; body: string; read: boolean; created_at: string }[];
 };

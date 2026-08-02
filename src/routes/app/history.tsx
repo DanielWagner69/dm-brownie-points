@@ -6,14 +6,17 @@ import { AppShell } from "@/components/paws/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useHistory, useInvalidatePaws } from "@/lib/paws/hooks";
+import { useDashboard, useHistory, useInvalidatePaws } from "@/lib/paws/hooks";
 import {
   editLoggedAction,
   exportHistory,
   requestDeleteAction,
+  resolveModification,
+  reviewAction,
 } from "@/lib/paws/server";
 import { downloadText, formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { tone } from "@/lib/paws/tone";
 
 export const Route = createFileRoute("/app/history")({
   component: HistoryPage,
@@ -21,6 +24,9 @@ export const Route = createFileRoute("/app/history")({
 
 function HistoryPage() {
   const user = useCurrentUser();
+  const dash = useDashboard(Boolean(user));
+  const theme = dash.data?.profile.theme;
+  const t = (s: string) => tone(s, theme);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<string>("");
   const [status, setStatus] = useState<string>("");
@@ -31,7 +37,7 @@ function HistoryPage() {
   const invalidate = useInvalidatePaws();
 
   return (
-    <AppShell title="Your story" subtitle="Searchable shared history">
+    <AppShell title={t("Your story")} subtitle={t("Searchable shared history")}>
       <div className="space-y-3">
         <Input
           placeholder="Search notes, actions, tags…"
@@ -39,11 +45,7 @@ function HistoryPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={!kind ? "default" : "outline"}
-            onClick={() => setKind("")}
-          >
+          <Button size="sm" variant={!kind ? "default" : "outline"} onClick={() => setKind("")}>
             All kinds
           </Button>
           <Button
@@ -107,7 +109,13 @@ function HistoryPage() {
               user &&
               a.logged_by === user.id &&
               a.status !== "declined" &&
+              a.status !== "modification_pending" &&
               new Date(a.editable_until).getTime() > Date.now();
+            const canReview =
+              user && a.logged_by !== user.id && a.status === "pending" && !a.archived;
+            const canConfirmMod =
+              user && a.logged_by === user.id && a.status === "modification_pending";
+
             return (
               <article
                 key={a.id}
@@ -129,16 +137,21 @@ function HistoryPage() {
                     >
                       {formatPoints(a.points)}
                     </span>
+                    {a.status === "modification_pending" && a.proposed_points != null ? (
+                      <span className="text-xs text-primary tabular">
+                        proposed {formatPoints(a.proposed_points)}
+                      </span>
+                    ) : null}
                     <Badge
                       variant={
-                        a.status === "pending"
+                        a.status === "pending" || a.status === "modification_pending"
                           ? "pending"
                           : a.status === "declined"
                             ? "negative"
                             : "soft"
                       }
                     >
-                      {a.status}
+                      {a.status === "modification_pending" ? "tweak pending" : a.status}
                     </Badge>
                   </div>
                 </div>
@@ -146,9 +159,7 @@ function HistoryPage() {
                   <p className="mt-2 text-sm text-muted-foreground">{a.note}</p>
                 ) : null}
                 {a.attention_to_detail ? (
-                  <p className="mt-1 text-xs font-medium text-primary">
-                    Attention to Detail
-                  </p>
+                  <p className="mt-1 text-xs font-medium text-primary">Attention to Detail</p>
                 ) : null}
                 {a.photo_data ? (
                   <img
@@ -160,7 +171,110 @@ function HistoryPage() {
                 {a.decline_note ? (
                   <p className="mt-2 text-xs text-danger">Declined: {a.decline_note}</p>
                 ) : null}
+
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {canReview ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await reviewAction({ data: { id: a.id, decision: "accept" } });
+                            toast.success("Accepted");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Failed");
+                          }
+                        }}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          const pts = window.prompt(
+                            "Propose new Brownie Points?",
+                            String(a.points),
+                          );
+                          if (pts == null) return;
+                          try {
+                            await reviewAction({
+                              data: {
+                                id: a.id,
+                                decision: "modify",
+                                points: Number(pts),
+                              },
+                            });
+                            toast.success("Sent for their agreement");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Failed");
+                          }
+                        }}
+                      >
+                        Modify
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          const note = window.prompt("A gentle note for declining?");
+                          if (!note?.trim()) return;
+                          try {
+                            await reviewAction({
+                              data: { id: a.id, decision: "decline", decline_note: note },
+                            });
+                            toast.message("Declined");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Failed");
+                          }
+                        }}
+                      >
+                        Decline
+                      </Button>
+                    </>
+                  ) : null}
+
+                  {canConfirmMod ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await resolveModification({
+                              data: { id: a.id, decision: "accept" },
+                            });
+                            toast.success("You both agreed");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Failed");
+                          }
+                        }}
+                      >
+                        Agree to {formatPoints(a.proposed_points ?? a.points)}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await resolveModification({
+                              data: { id: a.id, decision: "reject" },
+                            });
+                            toast.message("Kept original score");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Failed");
+                          }
+                        }}
+                      >
+                        Keep original
+                      </Button>
+                    </>
+                  ) : null}
+
                   {canEdit ? (
                     <Button
                       size="sm"
@@ -198,16 +312,14 @@ function HistoryPage() {
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Request delete
+                    Delete
                   </Button>
                 </div>
               </article>
             );
           })}
-          {history.data?.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Your shared notebook is still blank — in a cozy way.
-            </p>
+          {(history.data ?? []).length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No entries yet.</p>
           ) : null}
         </div>
       </div>

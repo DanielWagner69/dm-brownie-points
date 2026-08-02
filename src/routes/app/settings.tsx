@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Flower2, Grape, LogOut, Moon, Plane, Sun } from "lucide-react";
+import { Flame, Flower2, Grape, LogOut, Moon, Plane, Sun } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +75,7 @@ function SettingsPage() {
     { id: "blossom", label: "Blossom", swatch: "#a65d72", icon: Flower2 },
     { id: "burgundy", label: "Burgundy", swatch: "#8b1e3f", icon: Grape },
     { id: "flight", label: "Flight teal", swatch: "#5ed4c8", icon: Plane },
+    { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame },
   ];
 
   return (
@@ -118,7 +119,7 @@ function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Theme</CardTitle>
-            <CardDescription>Warm cream by default. Burgundy for deep wine vibes; Flight teal from that mint-on-deep-teal look.</CardDescription>
+            <CardDescription>Warm cream by default. Naughty adds flirty puns across the app (still private to you two).</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {themes.map((t) => {
@@ -197,22 +198,27 @@ function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Your preference ratings</CardTitle>
+            <CardTitle className="text-base">All actions & ratings</CardTitle>
             <CardDescription>
-              Only affect future suggested scores when actions apply to you.
+              Full default list plus your custom ones (same as Log). Ratings only affect future suggestions when actions apply to you.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {(prefTargets.data ?? []).map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-2">
-                <p className="min-w-0 flex-1 truncate text-sm">{a.name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{a.name}</p>
+                  <p className="text-[11px] text-muted-foreground capitalize">
+                    {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
+                    {!a.is_default ? " · custom" : ""}
+                  </p>
+                </div>
                 <PointsInput
                   className="w-20"
-                  value={ratings[a.id] ?? a.base_points}
+                  value={ratings[a.id] ?? a.my_points ?? a.base_points}
                   onValueChange={(n) => setRatings((r) => ({ ...r, [a.id]: n }))}
                   aria-label={`Brownie Points for ${a.name}`}
                 />
-
               </div>
             ))}
             <Button
@@ -278,7 +284,7 @@ function SettingsPage() {
                   },
                 });
                 setNewAction("");
-                toast.success("Action added");
+                toast.success("Action added — it shows in Nest and Log");
                 invalidate();
               }}
             >
