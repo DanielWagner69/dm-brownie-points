@@ -4,9 +4,11 @@ import {
   getDashboard,
   listActionTypes,
   listHistory,
+  listMyPreferenceTargets,
   listRewards,
   settleExpired,
 } from "./server";
+import type { ActionType } from "./types";
 
 export function useDashboard(enabled = true) {
   return useQuery({
@@ -28,7 +30,20 @@ export function useDashboard(enabled = true) {
 export function useActionTypes(enabled = true) {
   return useQuery({
     queryKey: ["action-types"],
-    queryFn: () => listActionTypes(),
+    queryFn: async (): Promise<ActionType[]> => {
+      const [partnerView, myView] = await Promise.all([
+        listActionTypes(),
+        listMyPreferenceTargets(),
+      ]);
+      const myById = new Map(myView.map((a) => [a.id, a.my_points ?? null]));
+      return partnerView.map((a) => ({
+        ...a,
+        // partner's rating (when you performed for them)
+        preferred_points: a.preferred_points,
+        // your rating (when they performed for you)
+        my_points: myById.get(a.id) ?? a.my_points ?? null,
+      }));
+    },
     enabled,
     staleTime: 10_000,
   });
