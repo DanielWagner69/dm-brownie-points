@@ -1,4 +1,4 @@
-export type ThemeId = "warm" | "dusk" | "blossom" | "burgundy" | "flight" | "naughty";
+export type ThemeId = "warm" | "dusk" | "blossom" | "burgundy" | "flight" | "sky" | "naughty";
 
 export type Profile = {
   user_id: string;
@@ -38,7 +38,9 @@ export type ActionType = {
   category: string;
   is_default: boolean;
   archived: boolean;
+  /** Partner's preferred points (use when YOU did the action — they received it) */
   preferred_points: number | null;
+  /** Your preferred points (use when THEY did the action — you received it) */
   my_points?: number | null;
 };
 
@@ -117,6 +119,17 @@ export type TreatTip = {
   total: number;
 };
 
+export type HomeStats = {
+  week_positive: number;
+  week_negative: number;
+  week_accepted: number;
+  week_pending: number;
+  month_logged: number;
+  pending_reviews: number;
+  pending_claims: number;
+  pending_modifications: number;
+};
+
 export type Dashboard = {
   profile: Profile;
   couple: Couple | null;
@@ -132,5 +145,6 @@ export type Dashboard = {
   recent: LoggedAction[];
   treatTips: TreatTip[];
   weeklySummary: string;
+  stats: HomeStats;
   notifications: { id: string; title: string; body: string; read: boolean; created_at: string }[];
 };
