@@ -2,15 +2,15 @@
 @import "tw-animate-css";
 
 @theme {
-  --font-sans: "Segoe UI", "Nunito", system-ui, -apple-system, sans-serif;
-  --font-display: "Segoe UI", "Nunito", system-ui, -apple-system, sans-serif;
-
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --radius-lg: 1rem;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-card: var(--card);
   --color-foreground: var(--fg);
-  --color-muted: var(--muted-bg);
   --color-muted-foreground: var(--fg-muted);
+  --color-muted: var(--muted-bg);
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-fg);
@@ -22,97 +22,89 @@
   --color-positive: var(--positive);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-fg);
-  --color-card-foreground: var(--fg);
-
-  --radius-xl: 1.25rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 1.75rem;
 }
 
-/* Warm default — soft cream + clay accent (playful couple notebook) */
 :root,
 [data-theme="warm"] {
-  --bg: #f7f1ea;
-  --surface: #fffaf5;
+  --bg: #f7f0e8;
+  --surface: #fffaf4;
   --card: #ffffff;
-  --fg: #2c2420;
-  --fg-muted: #7a6a60;
+  --fg: #2c2118;
+  --fg-muted: #7a6a5c;
   --muted-bg: #efe4d8;
-  --border: color-mix(in oklab, #2c2420 12%, transparent);
+  --border: color-mix(in oklab, #2c2118 12%, transparent);
   --primary: #b56b4a;
-  --primary-fg: #fffaf5;
+  --primary-fg: #fff8f2;
   --secondary: #efe4d8;
-  --secondary-fg: #2c2420;
-  --accent: #e8c4a8;
-  --accent-fg: #3a2a22;
+  --secondary-fg: #2c2118;
+  --accent: #e8c9a8;
+  --accent-fg: #2c2118;
   --ring: #b56b4a;
-  --positive: #3d7a5c;
-  --danger: #b54a4a;
-  --danger-fg: #fffaf5;
+  --positive: #4f9d74;
+  --danger: #c45c5c;
+  --danger-fg: #fff8f2;
 }
 
 [data-theme="dusk"] {
-  --bg: #141210;
-  --surface: #1c1916;
-  --card: #221e1a;
-  --fg: #f3ebe3;
-  --fg-muted: #a89888;
-  --muted-bg: #2a2420;
-  --border: color-mix(in oklab, #f3ebe3 12%, transparent);
+  --bg: #1c1714;
+  --surface: #261f1a;
+  --card: #2f2620;
+  --fg: #f3e8dc;
+  --fg-muted: #b9a99a;
+  --muted-bg: #3a3028;
+  --border: color-mix(in oklab, #f3e8dc 14%, transparent);
   --primary: #d4926e;
-  --primary-fg: #1a1410;
-  --secondary: #2a2420;
-  --secondary-fg: #f3ebe3;
-  --accent: #5c4030;
-  --accent-fg: #f3ebe3;
+  --primary-fg: #1c1714;
+  --secondary: #3a3028;
+  --secondary-fg: #f3e8dc;
+  --accent: #c9a07a;
+  --accent-fg: #1c1714;
   --ring: #d4926e;
-  --positive: #6db890;
-  --danger: #e07a7a;
-  --danger-fg: #1a1410;
-}
-
-[data-theme="blossom"] {
-  --bg: #faf6f7;
-  --surface: #fff9fa;
-  --card: #ffffff;
-  --fg: #2a2226;
-  --fg-muted: #7a6670;
-  --muted-bg: #f0e4e8;
-  --border: color-mix(in oklab, #2a2226 12%, transparent);
-  --primary: #a65d72;
-  --primary-fg: #fff9fa;
-  --secondary: #f0e4e8;
-  --secondary-fg: #2a2226;
-  --accent: #e8cdd6;
-  --accent-fg: #3a222c;
-  --ring: #a65d72;
-  --positive: #3d7a5c;
-  --danger: #b54a4a;
-  --danger-fg: #fff9fa;
-}
-
-/* Burgundy — deep wine + soft blush */
-[data-theme="burgundy"] {
-  --bg: #1a0f12;
-  --surface: #241618;
-  --card: #2e1c20;
-  --fg: #f8ecee;
-  --fg-muted: #c4a0a8;
-  --muted-bg: #3a242a;
-  --border: color-mix(in oklab, #f8ecee 12%, transparent);
-  --primary: #8b1e3f;
-  --primary-fg: #fff5f7;
-  --secondary: #3a242a;
-  --secondary-fg: #f8ecee;
-  --accent: #c45c7a;
-  --accent-fg: #1a0f12;
-  --ring: #c45c7a;
   --positive: #6db890;
   --danger: #e07a7a;
   --danger-fg: #1a0f12;
 }
 
-/* Flight — deep teal + mint accents (from the Flight Crowd palette) */
+[data-theme="blossom"] {
+  --bg: #faf3f6;
+  --surface: #fff9fb;
+  --card: #ffffff;
+  --fg: #3a2430;
+  --fg-muted: #8a6a78;
+  --muted-bg: #f0e2e8;
+  --border: color-mix(in oklab, #3a2430 12%, transparent);
+  --primary: #a65d72;
+  --primary-fg: #fff7fa;
+  --secondary: #f0e2e8;
+  --secondary-fg: #3a2430;
+  --accent: #e8b8c8;
+  --accent-fg: #3a2430;
+  --ring: #a65d72;
+  --positive: #5a9e78;
+  --danger: #c45c6e;
+  --danger-fg: #fff7fa;
+}
+
+[data-theme="burgundy"] {
+  --bg: #1a0f12;
+  --surface: #26151a;
+  --card: #321c24;
+  --fg: #f8ebea;
+  --fg-muted: #c4a0a8;
+  --muted-bg: #3d242c;
+  --border: color-mix(in oklab, #f8ebea 14%, transparent);
+  --primary: #8b1e3f;
+  --primary-fg: #fff5f7;
+  --secondary: #3d242c;
+  --secondary-fg: #f8ebea;
+  --accent: #c45c72;
+  --accent-fg: #1a0f12;
+  --ring: #8b1e3f;
+  --positive: #6db890;
+  --danger: #e07a7a;
+  --danger-fg: #1a0f12;
+}
+
 [data-theme="flight"] {
   --bg: #0a3d42;
   --surface: #0f4a50;
@@ -131,6 +123,27 @@
   --positive: #8ef0a8;
   --danger: #ff8f9a;
   --danger-fg: #2a0a10;
+}
+
+/* Sky — soft light blue */
+[data-theme="sky"] {
+  --bg: #e8f4fc;
+  --surface: #f5faff;
+  --card: #ffffff;
+  --fg: #0f2a3d;
+  --fg-muted: #5a7a90;
+  --muted-bg: #d6ebf7;
+  --border: color-mix(in oklab, #0f2a3d 12%, transparent);
+  --primary: #3b9dd9;
+  --primary-fg: #ffffff;
+  --secondary: #d6ebf7;
+  --secondary-fg: #0f2a3d;
+  --accent: #7ec4ea;
+  --accent-fg: #0f2a3d;
+  --ring: #3b9dd9;
+  --positive: #2f9e6a;
+  --danger: #d6455d;
+  --danger-fg: #ffffff;
 }
 
 /* Naughty — deep plum + hot pink, flirty energy */
@@ -173,7 +186,6 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-    /* Wrap at word boundaries only — never split mid-word (no A/dd) */
     overflow-wrap: normal;
     word-break: normal;
     hyphens: none;
@@ -192,7 +204,7 @@
   span,
   td,
   th {
-    overflow-wrap: break-word; /* only break long unbroken strings if needed */
+    overflow-wrap: break-word;
     word-break: normal;
     hyphens: none;
   }
@@ -201,25 +213,16 @@
 /* soft paw watermark */
 .paw-bg {
   background-image: radial-gradient(
-    ellipse 80% 50% at 50% -10%,
-    color-mix(in oklab, var(--primary) 12%, transparent),
-    transparent
+    ellipse at top,
+    color-mix(in oklab, var(--primary) 8%, transparent),
+    transparent 55%
   );
 }
 
 .safe-pb {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
 }
