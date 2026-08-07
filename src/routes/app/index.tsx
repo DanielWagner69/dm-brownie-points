@@ -109,6 +109,53 @@ function HomePage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">This week at a glance</CardTitle>
+            <CardDescription>Soft stats for your shared Brownie Points nest.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular text-positive">
+                  {d.stats?.week_positive ?? 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Positives</p>
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular text-danger">
+                  {d.stats?.week_negative ?? 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Negatives</p>
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular">
+                  {d.stats?.week_accepted ?? 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Accepted</p>
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular">
+                  {d.stats?.week_pending ?? 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Still pending</p>
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular">
+                  {d.stats?.month_logged ?? 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">This month</p>
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-semibold tabular">
+                  {(d.stats?.pending_claims ?? 0) + (d.stats?.pending_modifications ?? 0)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Claims / tweaks</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {(d.pendingModifications?.length ?? 0) > 0 ? (
           <Card>
             <CardHeader>
