@@ -133,6 +133,8 @@ function LogPage() {
           note,
           photo_data: photo,
           attention_to_detail: detail,
+          // Recipient preference already computed client-side — force server to use it
+          points_override: suggested,
           occurred_on:
             retrospective && occurredOn
               ? occurredOn
