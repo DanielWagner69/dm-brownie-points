@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Flame, Flower2, Grape, LogOut, Moon, Plane, Sun, Trash2 } from "lucide-react";
+import { Cloud, Flame, Flower2, Grape, LogOut, Moon, Plane, Sun, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,7 +87,8 @@ function SettingsPage() {
     { id: "blossom", label: "Blossom", swatch: "#a65d72", icon: Flower2 },
     { id: "burgundy", label: "Burgundy", swatch: "#8b1e3f", icon: Grape },
     { id: "flight", label: "Flight teal", swatch: "#5ed4c8", icon: Plane },
-    { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame }, // label toned below
+    { id: "sky", label: "Sky blue", swatch: "#3b9dd9", icon: Cloud },
+    { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame },
   ];
 
   return (
@@ -225,6 +226,36 @@ function SettingsPage() {
                     {a.kind} · default {a.base_points > 0 ? `+${a.base_points}` : a.base_points}
                     {!a.is_default ? " · custom" : ""}
                   </p>
+                  <select
+                    className="mt-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs"
+                    value={a.category || "general"}
+                    onChange={async (e) => {
+                      const next = e.target.value.trim() || "general";
+                      try {
+                        await upsertActionType({
+                          data: {
+                            id: a.id,
+                            name: a.name,
+                            kind: a.kind,
+                            base_points: a.base_points,
+                            category: next,
+                          },
+                        });
+                        toast.success("Group updated");
+                        invalidate();
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Could not update group");
+                      }
+                    }}
+                  >
+                    {[a.category || "general", "general", "kindness", "chores", "affection", "communication", "fun", "care"]
+                      .filter((v, i, arr) => arr.indexOf(v) === i)
+                      .map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                  </select>
                 </div>
                 <PointsInput
                   className="w-20"
