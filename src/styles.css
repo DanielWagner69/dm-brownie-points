@@ -133,6 +133,27 @@
   --danger-fg: #2a0a10;
 }
 
+/* Sky — clear blue with stronger button accents */
+[data-theme="sky"] {
+  --bg: #e4f2fb;
+  --surface: #f4faff;
+  --card: #ffffff;
+  --fg: #0c2438;
+  --fg-muted: #4d6f88;
+  --muted-bg: #cfe6f5;
+  --border: color-mix(in oklab, #0c2438 18%, transparent);
+  --primary: #1f8fd4;
+  --primary-fg: #ffffff;
+  --secondary: #cfe6f5;
+  --secondary-fg: #0c2438;
+  --accent: #5eb8ea;
+  --accent-fg: #0c2438;
+  --ring: #1f8fd4;
+  --positive: #2a8f5c;
+  --danger: #d63b54;
+  --danger-fg: #ffffff;
+}
+
 /* Naughty — deep plum + hot pink buttons */
 [data-theme="naughty"] {
   --bg: #160810;
