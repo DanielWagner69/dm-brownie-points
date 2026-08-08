@@ -68,12 +68,14 @@ function toSql(run: Run): Sql {
 import migration0001 from "../../migrations/0001_auth.sql?raw";
 import migration0002 from "../../migrations/0002_paws.sql?raw";
 import migration0003 from "../../migrations/0003_modify_pending.sql?raw";
+import migration0004 from "../../migrations/0004_held_status.sql?raw";
 
 function loadMigrationFiles(): { name: string; text: string }[] {
   return [
     { name: "0001_auth.sql", text: migration0001 },
     { name: "0002_paws.sql", text: migration0002 },
     { name: "0003_modify_pending.sql", text: migration0003 },
+    { name: "0004_held_status.sql", text: migration0004 },
   ];
 }
 

@@ -59,10 +59,17 @@ export type LoggedAction = {
   note: string;
   photo_data: string | null;
   category: string;
-  status: "pending" | "accepted" | "declined" | "modified" | "modification_pending";
+  status:
+    | "held"
+    | "pending"
+    | "accepted"
+    | "declined"
+    | "modified"
+    | "modification_pending";
   decline_note: string | null;
   editable_until: string;
   review_until: string;
+  held_until?: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
   archived: boolean;
@@ -70,6 +77,18 @@ export type LoggedAction = {
   updated_at: string;
   logger_name?: string;
   applies_name?: string;
+};
+
+export type DeletionRequest = {
+  id: string;
+  couple_id: string;
+  entry_type: "action" | "history_wipe";
+  entry_id: string | null;
+  requested_by: string;
+  status: "pending" | "approved" | "cancelled";
+  created_at: string;
+  requester_name?: string;
+  action_name?: string | null;
 };
 
 export type Reward = {
@@ -142,6 +161,10 @@ export type Dashboard = {
   /** Modifications your partner proposed — you must agree */
   pendingModifications: LoggedAction[];
   pendingClaims: RewardClaim[];
+  /** Delete requests your partner started — you must agree */
+  pendingDeletions: DeletionRequest[];
+  /** Your own held logs still in the 30s grace window */
+  heldActions: LoggedAction[];
   recent: LoggedAction[];
   treatTips: TreatTip[];
   weeklySummary: string;

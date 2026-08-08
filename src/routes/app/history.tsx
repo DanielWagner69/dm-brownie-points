@@ -94,7 +94,7 @@ function HistoryPage() {
               toast.message(
                 res.status === "approved"
                   ? "History wiped (both agreed)"
-                  : "Wipe requested — partner must agree",
+                  : "Wipe requested — partner will see it on Nest home to agree",
               );
               invalidate();
             }}
@@ -110,7 +110,7 @@ function HistoryPage() {
               a.logged_by === user.id &&
               a.status !== "declined" &&
               a.status !== "modification_pending" &&
-              new Date(a.editable_until).getTime() > Date.now();
+              (a.status === "held" || new Date(a.editable_until).getTime() > Date.now());
             const canReview =
               user && a.logged_by !== user.id && a.status === "pending" && !a.archived;
             const canConfirmMod =
@@ -146,12 +146,18 @@ function HistoryPage() {
                       variant={
                         a.status === "pending" || a.status === "modification_pending"
                           ? "pending"
-                          : a.status === "declined"
-                            ? "negative"
-                            : "soft"
+                          : a.status === "held"
+                            ? "soft"
+                            : a.status === "declined"
+                              ? "negative"
+                              : "soft"
                       }
                     >
-                      {a.status === "modification_pending" ? "tweak pending" : a.status}
+                      {a.status === "modification_pending"
+                        ? "tweak pending"
+                        : a.status === "held"
+                          ? "sending soon"
+                          : a.status}
                     </Badge>
                   </div>
                 </div>
@@ -304,10 +310,11 @@ function HistoryPage() {
                         data: { entry_type: "action", entry_id: a.id },
                       });
                       toast.message(
-                        res.status === "approved"
-                          ? "Deleted (both agreed)"
-                          : "Delete requested — partner must agree",
-                      );
+                res.status === "approved"
+                  ? "Deleted (both agreed)"
+                  : "Delete requested — partner will see it on Nest home to agree",
+              );
+
                       invalidate();
                     }}
                   >

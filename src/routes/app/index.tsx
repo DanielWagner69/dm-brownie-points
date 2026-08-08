@@ -5,6 +5,7 @@ import {
   Gift,
   HeartHandshake,
   PawPrint,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
-import { resolveClaim, resolveModification, reviewAction } from "@/lib/paws/server";
+import {
+  resolveClaim,
+  resolveModification,
+  respondToDeletion,
+  reviewAction,
+} from "@/lib/paws/server";
 import { formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { tone, toneActionName } from "@/lib/paws/tone";
@@ -68,7 +74,7 @@ function HomePage() {
                   {d.balance.lifetime_negative} · Spent {d.balance.points_spent} BP
                 </p>
               </div>
-              <div className="rounded-2xl bg-primary/10 px-3 py-2 text-center">
+              <div className="rounded-2xl bg-primary/15 px-3 py-2 text-center ring-1 ring-primary/25">
                 <Flame className="mx-auto h-5 w-5 text-primary" />
                 <p className="mt-1 text-lg font-semibold tabular">{d.streak}</p>
                 <p className="text-[10px] text-muted-foreground">{t("day streak")}</p>
@@ -85,13 +91,10 @@ function HomePage() {
             ) : null}
 
             {d.treatTips && d.treatTips.length > 0 ? (
-              <div className="mt-4 space-y-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
+              <div className="mt-4 space-y-2 rounded-2xl border border-primary/30 bg-primary/10 px-3 py-3">
                 <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
                   <Gift className="h-3.5 w-3.5" />
-                  Treats you can afford
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  From your list · costs set by {partnerLabel}
+                  What you could claim
                 </p>
                 <ul className="space-y-1.5">
                   {d.treatTips.map((tip) => (
@@ -106,58 +109,80 @@ function HomePage() {
               </div>
             ) : d.balance.current > 0 ? (
               <p className="mt-4 text-xs text-muted-foreground">
-                Add treats on your list and ask {partnerLabel} to set the BP costs — affordable ones will show here.
+                Add treats on your list and have {partnerLabel} set the costs to see spend tips here.
               </p>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">This week at a glance</CardTitle>
-            <CardDescription>Soft stats for your shared Brownie Points nest.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular text-positive">
-                  {d.stats?.week_positive ?? 0}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Positives</p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular text-danger">
-                  {d.stats?.week_negative ?? 0}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Negatives</p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular">
-                  {d.stats?.week_accepted ?? 0}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Accepted</p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular">
-                  {d.stats?.week_pending ?? 0}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Still pending</p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular">
-                  {d.stats?.month_logged ?? 0}
-                </p>
-                <p className="text-[11px] text-muted-foreground">This month</p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-semibold tabular">
-                  {(d.stats?.pending_claims ?? 0) + (d.stats?.pending_modifications ?? 0)}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Claims / tweaks</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {(d.pendingDeletions?.length ?? 0) > 0 ? (
+          <Card className="border-danger/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Trash2 className="h-4 w-4 text-danger" />
+                Delete needs your yes
+              </CardTitle>
+              <CardDescription>
+                {partnerLabel} asked to remove something. Agree and it’s gone — or keep it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {d.pendingDeletions.map((dr) => (
+                <div
+                  key={dr.id}
+                  className="rounded-2xl border border-border bg-surface p-3"
+                >
+                  <p className="text-sm font-medium">
+                    {dr.entry_type === "history_wipe"
+                      ? "Wipe entire history"
+                      : dr.action_name
+                        ? `Delete “${dr.action_name}”`
+                        : "Delete a logged entry"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    From {dr.requester_name ?? partnerLabel}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={async () => {
+                        try {
+                          await respondToDeletion({
+                            data: { request_id: dr.id, decision: "approve" },
+                          });
+                          toast.success("Deleted — both agreed");
+                          invalidate();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Failed");
+                        }
+                      }}
+                    >
+                      Agree to delete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await respondToDeletion({
+                            data: { request_id: dr.id, decision: "reject" },
+                          });
+                          toast.message("Kept in your story");
+                          invalidate();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Failed");
+                        }
+                      }}
+                    >
+                      Keep it
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         {(d.pendingModifications?.length ?? 0) > 0 ? (
           <Card>
@@ -323,7 +348,7 @@ function HomePage() {
                   <div className="min-w-0">
                     <p className="break-words text-sm font-medium leading-snug">{toneActionName(a.action_name, a.kind, theme, a.id)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {a.logger_name} · {a.status}
+                      {a.logger_name} · {a.status === "held" ? "sending soon" : a.status}
                     </p>
                   </div>
                   <span
@@ -349,7 +374,7 @@ function HomePage() {
           <Button asChild variant="secondary" className="h-14">
             <Link to="/app/rewards">
               <HeartHandshake className="h-4 w-4" />
-              {t("Treats")}
+              {t("Treats & wishes")}
             </Link>
           </Button>
         </div>
@@ -364,42 +389,28 @@ function ReviewActions({
   theme,
   onDone,
 }: {
-  a: {
-    id: string;
-    action_name: string;
-    direction: string;
-    points: number;
-    note: string;
-    kind: string;
-  };
+  a: import("@/lib/paws/types").LoggedAction;
   t: (s: string) => string;
-  theme: string | null | undefined;
+  theme: import("@/lib/paws/types").ThemeId | undefined;
   onDone: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-snug [overflow-wrap:normal] [word-break:normal]">
-            {toneActionName(a.action_name, a.kind, theme, a.id)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {a.direction === "self" ? "They did" : "You did"} ·{" "}
-            <span className="tabular">{formatPoints(a.points)}</span>
-          </p>
-          {a.note ? <p className="mt-1 text-sm text-muted-foreground">{a.note}</p> : null}
-        </div>
-        <Badge variant={a.kind === "positive" ? "positive" : "negative"}>
-          {t(a.kind === "positive" ? "Positive" : "Negative")}
-        </Badge>
-      </div>
+      <p className="text-sm font-medium">{toneActionName(a.action_name, a.kind, theme, a.id)}</p>
+      <p className="text-xs text-muted-foreground">
+        {formatPoints(a.points)}
+        {a.note ? ` · ${a.note}` : ""}
+      </p>
+      {a.photo_data ? (
+        <img src={a.photo_data} alt="" className="mt-2 max-h-32 rounded-xl object-cover" />
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <Button
           size="sm"
           onClick={async () => {
             try {
               await reviewAction({ data: { id: a.id, decision: "accept" } });
-              toast.success(t("Accepted with love"));
+              toast.success("Accepted");
               onDone();
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Failed");
@@ -418,7 +429,7 @@ function ReviewActions({
               await reviewAction({
                 data: { id: a.id, decision: "modify", points: Number(pts) },
               });
-              toast.success("Sent to them for agreement");
+              toast.success("Sent for their agreement");
               onDone();
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Failed");
@@ -437,7 +448,7 @@ function ReviewActions({
               await reviewAction({
                 data: { id: a.id, decision: "decline", decline_note: note },
               });
-              toast.message("Declined and archived");
+              toast.message("Declined");
               onDone();
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Failed");
