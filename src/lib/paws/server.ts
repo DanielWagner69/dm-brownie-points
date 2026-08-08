@@ -1392,6 +1392,16 @@ export const getDashboard = createServerFn({ method: "GET" })
     let treatTips: Dashboard["treatTips"] = [];
     let weeklySummary = "";
     let notifications: Dashboard["notifications"] = [];
+    let stats: Dashboard["stats"] = {
+      week_positive: 0,
+      week_negative: 0,
+      week_accepted: 0,
+      week_pending: 0,
+      month_logged: 0,
+      pending_reviews: 0,
+      pending_claims: 0,
+      pending_modifications: 0,
+    };
 
     if (coupleRow) {
       const pid = partnerIdOf(coupleRow, userId);
@@ -1490,6 +1500,36 @@ export const getDashboard = createServerFn({ method: "GET" })
           where couple_id = ${coupleRow.id} and kind = 'positive'
             and created_at > now() - interval '7 days'
             and status in ('pending','accepted','modified')`;
+        const weekNeg = await sql<{ n: number }>`
+          select count(*)::int as n from logged_actions
+          where couple_id = ${coupleRow.id} and kind = 'negative'
+            and created_at > now() - interval '7 days'
+            and status in ('pending','accepted','modified')`;
+        const weekAcc = await sql<{ n: number }>`
+          select count(*)::int as n from logged_actions
+          where couple_id = ${coupleRow.id}
+            and created_at > now() - interval '7 days'
+            and status in ('accepted','modified')`;
+        const weekPend = await sql<{ n: number }>`
+          select count(*)::int as n from logged_actions
+          where couple_id = ${coupleRow.id}
+            and created_at > now() - interval '7 days'
+            and status = 'pending'`;
+        const monthLog = await sql<{ n: number }>`
+          select count(*)::int as n from logged_actions
+          where couple_id = ${coupleRow.id}
+            and created_at > now() - interval '30 days'
+            and status != 'held'`;
+        stats = {
+          week_positive: weekPos[0]?.n ?? 0,
+          week_negative: weekNeg[0]?.n ?? 0,
+          week_accepted: weekAcc[0]?.n ?? 0,
+          week_pending: weekPend[0]?.n ?? 0,
+          month_logged: monthLog[0]?.n ?? 0,
+          pending_reviews: pendingReviews.length,
+          pending_claims: pendingClaims.length,
+          pending_modifications: pendingModifications.length,
+        };
         const partnerLabel =
           partner?.display_name ?? (profile.partner_nickname || "your person");
         weeklySummary = weeklySummaryText(
@@ -1522,6 +1562,7 @@ export const getDashboard = createServerFn({ method: "GET" })
       recent,
       treatTips,
       weeklySummary,
+      stats,
       notifications,
     };
   });
