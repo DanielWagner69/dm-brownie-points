@@ -9,6 +9,8 @@ export type Profile = {
   partner_nickname: string;
   notification_prefs: NotificationPrefs;
   onboarding_step: string;
+  /** Both partners must enable for Edit mode to unlock settled-action edits */
+  edit_mode: boolean;
 };
 
 export type NotificationPrefs = {
@@ -63,6 +65,12 @@ export type LoggedAction = {
   direction: "self" | "partner";
   points: number;
   proposed_points?: number | null;
+  proposed_note?: string | null;
+  proposed_attention_to_detail?: boolean | null;
+  /** Who proposed the pending tweak (other partner must agree) */
+  edit_proposed_by?: string | null;
+  /** Status before modification_pending (restored on decline) */
+  status_before_mod?: string | null;
   attention_to_detail: boolean;
   note: string;
   photo_data: string | null;
@@ -177,5 +185,7 @@ export type Dashboard = {
   treatTips: TreatTip[];
   weeklySummary: string;
   stats: HomeStats;
+  /** True only when both partners have edit_mode enabled */
+  editModeActive: boolean;
   notifications: { id: string; title: string; body: string; read: boolean; created_at: string }[];
 };
