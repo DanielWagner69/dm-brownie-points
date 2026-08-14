@@ -75,7 +75,6 @@ function RewardsPage() {
     setRepeatable(r.repeatable);
     setShowNew(true);
     setTab(r.kind === "wishlist" ? "wishlist" : "treats");
-    // Jump to the edit form so it is never off-screen above the viewport
     requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -92,7 +91,6 @@ function RewardsPage() {
           description: desc.trim(),
           kind,
           repeatable,
-          // Wishlist owner may set earn-points; treat cost is set by partner only
           point_cost: kind === "wishlist" ? pointNum : undefined,
         },
       });
@@ -269,12 +267,15 @@ function RewardsPage() {
                   className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-surface p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium">{cl.reward_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {cl.claimer_name ?? "Partner"} ·{" "}
+                    <p className="text-sm font-medium leading-snug">
                       {cl.points_spent > 0
-                        ? `spend ${cl.points_spent} Brownie Points`
-                        : "wishlist purchase"}
+                        ? `${cl.claimer_name ?? "Partner"} wants to spend ${cl.points_spent} Brownie Points for “${cl.reward_name}”`
+                        : `${cl.claimer_name ?? "Partner"} bought “${cl.reward_name}” for you`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {cl.points_spent > 0
+                        ? "Approve to let them claim the treat"
+                        : "Confirm so they earn the buy Brownie Points"}
                     </p>
                   </div>
                   <div className="flex gap-2">
