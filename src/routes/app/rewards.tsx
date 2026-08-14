@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Gift, Pencil, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
@@ -37,6 +37,7 @@ function RewardsPage() {
   const [points, setPoints] = useState("");
   const [repeatable, setRepeatable] = useState(true);
   const [editing, setEditing] = useState<Reward | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const kind: "gesture" | "wishlist" = tab === "treats" ? "gesture" : "wishlist";
 
@@ -74,6 +75,10 @@ function RewardsPage() {
     setRepeatable(r.repeatable);
     setShowNew(true);
     setTab(r.kind === "wishlist" ? "wishlist" : "treats");
+    // Jump to the edit form so it is never off-screen above the viewport
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function saveItem() {
@@ -137,6 +142,9 @@ function RewardsPage() {
                 else {
                   setEditing(null);
                   setShowNew(true);
+                  requestAnimationFrame(() => {
+                    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
                 }
               }}
             >
@@ -188,61 +196,64 @@ function RewardsPage() {
         </p>
 
         {showNew ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {editing ? "Edit" : "New"} {tab === "treats" ? "treat" : "wishlist item"}
-              </CardTitle>
-              <CardDescription>
-                {tab === "treats"
-                  ? "Something soft you’d love to receive. Partner prices it later."
-                  : "Something they can buy for you — set how many Brownie Points they earn."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={
-                    tab === "treats" ? "e.g. Breakfast in bed" : "e.g. Rosenthal vase"
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={desc}
-                  onChange={(e) => setDesc(e.target.value)}
-                  placeholder="Optional soft details…"
-                />
-              </div>
-              {tab === "wishlist" ? (
+          <div ref={formRef}>
+            <Card className="border-primary/35 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {editing ? "Edit" : "New"} {tab === "treats" ? "treat" : "wishlist item"}
+                </CardTitle>
+                <CardDescription>
+                  {tab === "treats"
+                    ? "Something soft you’d love to receive. Partner prices it later."
+                    : "Something they can buy for you — set how many Brownie Points they earn."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <div className="space-y-2">
-                  <Label>Buy Brownie Points (they earn when they buy it)</Label>
+                  <Label>Name</Label>
                   <Input
-                    type="number"
-                    value={points}
-                    onChange={(e) => setPoints(e.target.value)}
-                    placeholder="e.g. 10"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={
+                      tab === "treats" ? "e.g. Breakfast in bed" : "e.g. Rosenthal vase"
+                    }
+                    autoFocus
                   />
                 </div>
-              ) : null}
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={repeatable}
-                  onChange={(e) => setRepeatable(e.target.checked)}
-                  className="size-4 rounded border-border"
-                />
-                Repeatable (can happen more than once)
-              </label>
-              <Button className="w-full" onClick={() => void saveItem()}>
-                {editing ? "Save changes" : "Add to my list"}
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    value={desc}
+                    onChange={(e) => setDesc(e.target.value)}
+                    placeholder="Optional soft details…"
+                  />
+                </div>
+                {tab === "wishlist" ? (
+                  <div className="space-y-2">
+                    <Label>Buy Brownie Points (they earn when they buy it)</Label>
+                    <Input
+                      type="number"
+                      value={points}
+                      onChange={(e) => setPoints(e.target.value)}
+                      placeholder="e.g. 10"
+                    />
+                  </div>
+                ) : null}
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={repeatable}
+                    onChange={(e) => setRepeatable(e.target.checked)}
+                    className="size-4 rounded border-border"
+                  />
+                  Repeatable (can happen more than once)
+                </label>
+                <Button className="w-full" onClick={() => void saveItem()}>
+                  {editing ? "Save changes" : "Add to my list"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         ) : null}
 
         {pendingClaims.length > 0 ? (
