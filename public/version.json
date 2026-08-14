@@ -1,5 +1,5 @@
 {
-  "version": "2026-08-14-edit-mode-v2",
-  "builtAt": "2026-08-14T16:30:00Z",
-  "notes": "Edit mode for settled actions + PWA refresh"
+  "version": "2026-08-14-modular-v1",
+  "builtAt": "2026-08-14T17:40:00Z",
+  "notes": "Modular server + dual Edit mode + always-visible app version"
 }
