@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { updateProfile } from "@/lib/paws/server";
 import type { Dashboard } from "@/lib/paws/types";
+
+type VersionInfo = {
+  version: string;
+  builtAt?: string;
+  notes?: string;
+};
 
 type Props = {
   d: Dashboard;
@@ -13,7 +19,22 @@ type Props = {
 
 export function NestEditSettings({ d, invalidate }: Props) {
   const [refreshBusy, setRefreshBusy] = useState(false);
-  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<VersionInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<VersionInfo>)
+      .then((v) => {
+        if (!cancelled) setAppVersion(v);
+      })
+      .catch(() => {
+        /* ignore – version is best-effort */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -77,10 +98,21 @@ export function NestEditSettings({ d, invalidate }: Props) {
             Installed PWAs sometimes stick on an old build. This checks version.json, updates
             the service worker, clears caches, and reloads.
             {appVersion ? (
-              <span className="mt-1 block font-mono text-[11px] text-foreground">
-                Running: {appVersion}
+              <span className="mt-1.5 block space-y-0.5">
+                <span className="block font-mono text-[11px] text-foreground">
+                  Running: {appVersion.version}
+                </span>
+                {appVersion.notes ? (
+                  <span className="block text-[11px] text-muted-foreground">
+                    {appVersion.notes}
+                  </span>
+                ) : null}
               </span>
-            ) : null}
+            ) : (
+              <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
+                Checking version…
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -93,9 +125,9 @@ export function NestEditSettings({ d, invalidate }: Props) {
               try {
                 const remote = await fetch(`/version.json?t=${Date.now()}`, {
                   cache: "no-store",
-                }).then((r) => r.json() as Promise<{ version: string }>);
+                }).then((r) => r.json() as Promise<VersionInfo>);
                 const local = localStorage.getItem("pawmise-app-version");
-                setAppVersion(remote.version);
+                setAppVersion(remote);
 
                 if ("serviceWorker" in navigator) {
                   const regs = await navigator.serviceWorker.getRegistrations();
