@@ -84,23 +84,6 @@ function HistoryPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={async () => {
-              const res = await requestDeleteAction({
-                data: { entry_type: "history_wipe" },
-              });
-              toast.message(
-                res.status === "approved"
-                  ? "History wiped (both agreed)"
-                  : "Wipe requested — partner will see it on Nest home to agree",
-              );
-              invalidate();
-            }}
-          >
-            Request full wipe
-          </Button>
         </div>
 
         <div className="space-y-2 pb-4">

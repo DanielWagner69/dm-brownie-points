@@ -26,6 +26,26 @@ export function hoursFromNow(h: number): Date {
   return new Date(Date.now() + h * 60 * 60 * 1000);
 }
 
+export const POINTS_CAP = 10;
+export const DETAIL_BONUS = 2;
+
+/** Cap for action ratings / base scores. Attention to Detail is added after this. */
+export function clampBasePoints(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(-POINTS_CAP, Math.min(POINTS_CAP, Math.round(n)));
+}
+
+/** Cap for a logged total. Detail bonus may push a positive score to +12. */
+export function clampLoggedPoints(
+  n: number,
+  opts?: { detail?: boolean; kind?: string },
+): number {
+  const detail = Boolean(opts?.detail) && opts?.kind !== "negative";
+  const max = POINTS_CAP + (detail ? DETAIL_BONUS : 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(-POINTS_CAP, Math.min(max, Math.round(n)));
+}
+
 export function formatPoints(n: number): string {
   if (n > 0) return `+${n}`;
   return String(n);

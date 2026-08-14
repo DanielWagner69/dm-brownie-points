@@ -1,19 +1,25 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cloud, Flame, Flower2, Grape, LogOut, Moon, Plane, Sun, Trash2 } from "lucide-react";
+import { Bell, BellOff, Cloud, Flame, Flower2, Grape, LogOut, Moon, Plane, Pencil, Sun, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { PointsInput } from "@/components/ui/points-input";
 
-import { useActionTypes, useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
+import { useActionTypes, useCategories, useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
 import {
+  getPushPublicKey,
+  getPushStatus,
+  removePushSubscription,
+  requestDeleteAction,
   savePreferences,
+  savePushSubscription,
   unpair,
   updateProfile,
   upsertActionType,
+  upsertCategory,
 } from "@/lib/paws/server";
 import { downloadText } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
@@ -21,6 +27,12 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ThemeId } from "@/lib/paws/types";
 import { tone, toneActionName } from "@/lib/paws/tone";
 import { cn, formatPoints } from "@/lib/utils";
+import {
+  pushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/paws/push-client";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/app/settings")({
   component: SettingsPage,
@@ -40,8 +52,19 @@ function SettingsPage() {
   const [newAction, setNewAction] = useState("");
   const [newPoints, setNewPoints] = useState(1);
   const [newKind, setNewKind] = useState<"positive" | "negative">("positive");
+  const [newCatName, setNewCatName] = useState("");
+  const [editingCat, setEditingCat] = useState<number | null>(null);
+  const [editingCatName, setEditingCatName] = useState("");
+  const [wipeTyped, setWipeTyped] = useState("");
+  const [pushBusy, setPushBusy] = useState(false);
 
   const actionTypes = useActionTypes(Boolean(user));
+  const categories = useCategories(Boolean(user));
+  const pushStatus = useQuery({
+    queryKey: ["push-status"],
+    queryFn: () => getPushStatus(),
+    enabled: Boolean(user),
+  });
   const [ratings, setRatings] = useState<Record<number, number>>({});
 
   useEffect(() => {
@@ -198,6 +221,202 @@ function SettingsPage() {
             >
               Save ping prefs
             </Button>
+
+            <div className="mt-4 space-y-2 rounded-2xl border border-primary/25 bg-primary/5 p-3">
+              <p className="text-sm font-medium">Phone alerts</p>
+              <p className="text-xs leading-snug text-muted-foreground">
+                Yes — we can ping your phone. On Android, tap enable. On iPhone, first add
+                Pawmise to your Home Screen, then enable here. Uses the same toggles above.
+              </p>
+              {pushStatus.data?.enabled ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={pushBusy}
+                  onClick={async () => {
+                    setPushBusy(true);
+                    try {
+                      const endpoint = await unsubscribeFromPush();
+                      await removePushSubscription({ data: { endpoint: endpoint ?? undefined } });
+                      toast.message("Phone alerts off on this device");
+                      invalidate();
+                      await pushStatus.refetch();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not turn off");
+                    } finally {
+                      setPushBusy(false);
+                    }
+                  }}
+                >
+                  <BellOff className="h-4 w-4" />
+                  {pushBusy ? "Turning off…" : "Turn off phone alerts"}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  disabled={pushBusy}
+                  onClick={async () => {
+                    setPushBusy(true);
+                    try {
+                      if (!pushSupported()) {
+                        throw new Error(
+                          "This browser can’t do phone alerts. On iPhone, add Pawmise to the Home Screen first.",
+                        );
+                      }
+                      const { publicKey } = await getPushPublicKey();
+                      if (!publicKey) throw new Error("Phone alerts aren’t ready yet — try again in a moment");
+                      const sub = await subscribeToPush(publicKey);
+                      const json = sub.toJSON();
+                      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+                        throw new Error("Could not finish the phone subscription");
+                      }
+                      await savePushSubscription({
+                        data: {
+                          endpoint: json.endpoint,
+                          p256dh: json.keys.p256dh,
+                          auth: json.keys.auth,
+                        },
+                      });
+                      toast.success("Phone alerts on for this device");
+                      invalidate();
+                      await pushStatus.refetch();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not enable");
+                    } finally {
+                      setPushBusy(false);
+                    }
+                  }}
+                >
+                  <Bell className="h-4 w-4" />
+                  {pushBusy ? "Asking permission…" : "Enable phone alerts"}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Action groups</CardTitle>
+            <CardDescription>
+              Categories used on Log and in your library. Rename, add, or remove — actions in a
+              removed group move to “general”.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(categories.data ?? []).map((c) => (
+              <div
+                key={c.id}
+                className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2"
+              >
+                {editingCat === c.id ? (
+                  <>
+                    <Input
+                      className="min-w-0 flex-1"
+                      value={editingCatName}
+                      onChange={(e) => setEditingCatName(e.target.value)}
+                      aria-label="Rename group"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await upsertCategory({
+                            data: { id: c.id, name: editingCatName },
+                          });
+                          setEditingCat(null);
+                          toast.success("Group renamed");
+                          invalidate();
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Could not rename");
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingCat(null)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium capitalize">{c.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {c.action_count ?? 0} action{(c.action_count ?? 0) === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Rename ${c.name}`}
+                      onClick={() => {
+                        setEditingCat(c.id);
+                        setEditingCatName(c.name);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    {c.name.toLowerCase() !== "general" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-danger"
+                        aria-label={`Remove ${c.name}`}
+                        onClick={async () => {
+                          const n = c.action_count ?? 0;
+                          if (
+                            !window.confirm(
+                              n
+                                ? `Remove “${c.name}”? ${n} action${n === 1 ? "" : "s"} will move to general.`
+                                : `Remove “${c.name}”?`,
+                            )
+                          ) {
+                            return;
+                          }
+                          try {
+                            await upsertCategory({
+                              data: { id: c.id, name: c.name, archive: true },
+                            });
+                            toast.success("Group removed");
+                            invalidate();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Could not remove");
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New group name"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                disabled={!newCatName.trim()}
+                onClick={async () => {
+                  try {
+                    await upsertCategory({ data: { name: newCatName.trim() } });
+                    setNewCatName("");
+                    toast.success("Group added");
+                    invalidate();
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Could not add");
+                  }
+                }}
+              >
+                Add
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -205,7 +424,8 @@ function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">{t("All actions & ratings")}</CardTitle>
             <CardDescription>
-              Your ratings (primary) and partner ratings (smaller). Categories include love languages.
+              Your ratings (primary) and partner ratings (smaller). Ratings cap at ±10 —
+              Attention to Detail can add +2 on top when you log.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -253,17 +473,7 @@ function SettingsPage() {
                   >
                     {[
                       a.category || "general",
-                      "words of affirmation",
-                      "quality time",
-                      "acts of service",
-                      "receiving gifts",
-                      "physical touch",
-                      "kindness",
-                      "care",
-                      "trust",
-                      "respect",
-                      "conflict",
-                      "general",
+                      ...(categories.data ?? []).map((c) => c.name),
                     ]
                       .filter((v, i, arr) => arr.indexOf(v) === i)
                       .map((c) => (
@@ -429,6 +639,50 @@ function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <details className="rounded-3xl border border-border/70 bg-surface/60 px-4 py-3">
+          <summary className="cursor-pointer list-none text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Danger zone — wipe history
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-sm leading-snug text-muted-foreground">
+              This asks your partner to agree before anything is deleted. Type{" "}
+              <span className="font-mono font-semibold text-foreground">WIPE</span> to unlock.
+            </p>
+            <Input
+              value={wipeTyped}
+              onChange={(e) => setWipeTyped(e.target.value)}
+              placeholder="Type WIPE"
+              autoComplete="off"
+              aria-label="Type WIPE to confirm"
+            />
+            <Button
+              variant="outline"
+              className="w-full text-danger"
+              disabled={wipeTyped.trim().toUpperCase() !== "WIPE"}
+              onClick={async () => {
+                if (wipeTyped.trim().toUpperCase() !== "WIPE") return;
+                if (!window.confirm("Ask your partner to wipe the entire actions log?")) return;
+                try {
+                  const res = await requestDeleteAction({
+                    data: { entry_type: "history_wipe" },
+                  });
+                  setWipeTyped("");
+                  toast.message(
+                    res.status === "approved"
+                      ? "History wiped (both agreed)"
+                      : "Wipe requested — partner will see it on Nest home to agree",
+                  );
+                  invalidate();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Could not request wipe");
+                }
+              }}
+            >
+              Request full history wipe
+            </Button>
+          </div>
+        </details>
       </div>
     </AppShell>
   );

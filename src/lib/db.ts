@@ -69,6 +69,7 @@ import migration0001 from "../../migrations/0001_auth.sql?raw";
 import migration0002 from "../../migrations/0002_paws.sql?raw";
 import migration0003 from "../../migrations/0003_modify_pending.sql?raw";
 import migration0004 from "../../migrations/0004_held_status.sql?raw";
+import migration0005 from "../../migrations/0005_categories_push.sql?raw";
 
 function loadMigrationFiles(): { name: string; text: string }[] {
   return [
@@ -76,6 +77,7 @@ function loadMigrationFiles(): { name: string; text: string }[] {
     { name: "0002_paws.sql", text: migration0002 },
     { name: "0003_modify_pending.sql", text: migration0003 },
     { name: "0004_held_status.sql", text: migration0004 },
+    { name: "0005_categories_push.sql", text: migration0005 },
   ];
 }
 

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { PointsInput } from "@/components/ui/points-input";
-import { useActionTypes, useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
+import { useActionTypes, useCategories, useDashboard, useInvalidatePaws } from "@/lib/paws/hooks";
 import {
   cancelHeldAction,
   editLoggedAction,
@@ -16,7 +16,7 @@ import {
   releaseHeldAction,
   upsertActionType,
 } from "@/lib/paws/server";
-import { cn, formatPoints } from "@/lib/utils";
+import { cn, clampBasePoints, formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ActionType } from "@/lib/paws/types";
 import { compressImageFile } from "@/lib/paws/image";
@@ -66,6 +66,7 @@ function LogPage() {
   const theme = dash.data?.profile.theme;
   const t = (s: string) => tone(s, theme);
   const types = useActionTypes(Boolean(user));
+  const cats = useCategories(Boolean(user));
   const invalidate = useInvalidatePaws();
 
   // Default: raising against partner (what they did)
@@ -85,6 +86,7 @@ function LogPage() {
   const [newName, setNewName] = useState("");
   const [newKind, setNewKind] = useState<"positive" | "negative">("positive");
   const [newPoints, setNewPoints] = useState(5);
+  const [newCategory, setNewCategory] = useState("general");
   const [creating, setCreating] = useState(false);
 
   const [hold, setHold] = useState<HoldState | null>(null);
@@ -97,12 +99,14 @@ function LogPage() {
     "Partner";
 
   const categories = useMemo(() => {
+    const fromTable = (cats.data ?? []).map((c) => c.name);
+    if (fromTable.length) return fromTable;
     const set = new Set<string>();
     for (const a of types.data ?? []) {
       if (a.category?.trim()) set.add(a.category.trim());
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [types.data]);
+  }, [cats.data, types.data]);
 
   const filtered = useMemo(() => {
     let list = types.data ?? [];
@@ -123,7 +127,7 @@ function LogPage() {
     [newName, types.data],
   );
 
-  const basePts = selected ? pointsForDirection(selected, direction) : 0;
+  const basePts = selected ? clampBasePoints(pointsForDirection(selected, direction)) : 0;
   const suggested =
     selected && detail && selected.kind === "positive" ? basePts + 2 : basePts;
 
@@ -195,7 +199,7 @@ function LogPage() {
           note,
           photo_data: photo,
           attention_to_detail: detail,
-          points_override: suggested,
+          points_override: clampBasePoints(basePts),
           occurred_on:
             retrospective && occurredOn ? occurredOn : null,
         },
@@ -233,9 +237,9 @@ function LogPage() {
   async function createAndSelect(name: string, kind: "positive" | "negative", pts: number) {
     setCreating(true);
     try {
-      const base = kind === "negative" ? -Math.abs(pts) : Math.abs(pts);
+      const base = clampBasePoints(kind === "negative" ? -Math.abs(pts) : Math.abs(pts));
       const { id } = await upsertActionType({
-        data: { name: name.trim(), kind, base_points: base },
+        data: { name: name.trim(), kind, base_points: base, category: newCategory },
       });
       invalidate();
       const refreshed = await types.refetch();
@@ -248,7 +252,7 @@ function LogPage() {
           name: name.trim(),
           kind,
           base_points: base,
-          category: "general",
+          category: newCategory || "general",
           is_default: false,
           archived: false,
           preferred_points: base,
@@ -507,6 +511,24 @@ function LogPage() {
                   allowNegative={false}
                   aria-label="Base Brownie Points"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-action-cat">Group</Label>
+                <select
+                  id="new-action-cat"
+                  className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                >
+                  {(categories.includes(newCategory) ? categories : [newCategory, ...categories])
+                    .filter((v, i, arr) => arr.indexOf(v) === i)
+                    .map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground">Ratings cap at 10. Detail bonus is extra.</p>
               </div>
               <Button
                 className="w-full"

@@ -29,6 +29,14 @@ export type Couple = {
   is_complete: boolean;
 };
 
+export type ActionCategory = {
+  id: number;
+  couple_id: string;
+  name: string;
+  archived: boolean;
+  action_count?: number;
+};
+
 export type ActionType = {
   id: number;
   couple_id: string;

@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import {
   getDashboard,
   listActionTypes,
+  listCategories,
   listHistory,
   listMyPreferenceTargets,
   listRewards,
@@ -38,12 +39,19 @@ export function useActionTypes(enabled = true) {
       const myById = new Map(myView.map((a) => [a.id, a.my_points ?? null]));
       return partnerView.map((a) => ({
         ...a,
-        // partner's rating (when you performed for them)
         preferred_points: a.preferred_points,
-        // your rating (when they performed for you)
         my_points: myById.get(a.id) ?? a.my_points ?? null,
       }));
     },
+    enabled,
+    staleTime: 10_000,
+  });
+}
+
+export function useCategories(enabled = true) {
+  return useQuery({
+    queryKey: ["action-categories"],
+    queryFn: () => listCategories(),
     enabled,
     staleTime: 10_000,
   });
@@ -75,10 +83,12 @@ export function useInvalidatePaws() {
   return useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["dashboard"] });
     void qc.invalidateQueries({ queryKey: ["action-types"] });
+    void qc.invalidateQueries({ queryKey: ["action-categories"] });
     void qc.invalidateQueries({ queryKey: ["history"] });
     void qc.invalidateQueries({ queryKey: ["rewards"] });
     void qc.invalidateQueries({ queryKey: ["pref-targets"] });
     void qc.invalidateQueries({ queryKey: ["pref-targets-settings"] });
+    void qc.invalidateQueries({ queryKey: ["push-status"] });
     void qc.invalidateQueries({ queryKey: ["me"] });
   }, [qc]);
 }

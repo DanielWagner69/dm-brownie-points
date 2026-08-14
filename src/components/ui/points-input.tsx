@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { clampBasePoints, POINTS_CAP } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 /**
  * Number field that allows clearing while typing (e.g. change 4 → 3
- * without forced intermediate values like 43).
+ * without forced intermediate values like 43). Ratings are capped at ±10.
  */
 export function PointsInput({
   value,
@@ -12,6 +13,8 @@ export function PointsInput({
   className,
   allowNegative = true,
   id,
+  min,
+  max,
   "aria-label": ariaLabel,
 }: {
   value: number;
@@ -19,8 +22,12 @@ export function PointsInput({
   className?: string;
   allowNegative?: boolean;
   id?: string;
+  min?: number;
+  max?: number;
   "aria-label"?: string;
 }) {
+  const lo = min ?? (allowNegative ? -POINTS_CAP : 0);
+  const hi = max ?? POINTS_CAP;
   const [text, setText] = useState(() => String(value));
   const focused = useRef(false);
 
@@ -29,6 +36,12 @@ export function PointsInput({
   }, [value]);
 
   const pattern = allowNegative ? /^-?\d*$/ : /^\d*$/;
+
+  function emit(n: number) {
+    const clamped = Math.max(lo, Math.min(hi, clampBasePoints(n)));
+    onValueChange(clamped);
+    return clamped;
+  }
 
   return (
     <Input
@@ -43,7 +56,6 @@ export function PointsInput({
       }}
       onChange={(e) => {
         const next = e.target.value.trim();
-        // Allow empty while editing
         if (next === "") {
           setText("");
           return;
@@ -52,7 +64,10 @@ export function PointsInput({
         setText(next);
         if (next === "-" || next === "+") return;
         const n = Number(next);
-        if (Number.isFinite(n)) onValueChange(n);
+        if (Number.isFinite(n)) {
+          const clamped = emit(n);
+          if (clamped !== n) setText(String(clamped));
+        }
       }}
       onBlur={() => {
         focused.current = false;
@@ -60,9 +75,8 @@ export function PointsInput({
           setText(String(value));
           return;
         }
-        const n = Number(text);
-        onValueChange(n);
-        setText(String(n));
+        const clamped = emit(Number(text));
+        setText(String(clamped));
       }}
     />
   );

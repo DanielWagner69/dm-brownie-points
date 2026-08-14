@@ -8,10 +8,12 @@ import {
   PREFERENCE_SAMPLES,
   REMOVED_DEFAULT_ACTIONS,
   RENAMED_DEFAULT_ACTIONS,
+  ACTION_CATEGORIES,
   type BadgeStats,
 } from "./defaults";
 
 import type {
+  ActionCategory,
   ActionType,
   Balance,
   Couple,
@@ -23,7 +25,7 @@ import type {
   RewardClaim,
   ThemeId,
 } from "./types";
-import { hoursFromNow, id, inviteCode } from "@/lib/utils";
+import { clampBasePoints, clampLoggedPoints, hoursFromNow, id, inviteCode } from "@/lib/utils";
 
 type Ctx = { userId: string };
 
@@ -157,6 +159,7 @@ async function seedDefaults(coupleId: string, userId: string) {
         values (${id("rw")}, ${coupleId}, ${userId}, ${r.name}, ${r.description}, true, 'gesture')`;
     }
   }
+  await syncCategories(coupleId);
 }
 
 /** Keep existing nests in sync with the current default action catalog. */
@@ -198,6 +201,42 @@ async function syncDefaultActions(coupleId: string, userId: string) {
   }
 }
 
+async function syncCategories(coupleId: string) {
+  const sql = await getSql();
+  const existing = await sql<{ name: string }>`
+    select name from action_categories
+    where couple_id = ${coupleId} and archived = false`;
+  const have = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+
+  for (const name of ACTION_CATEGORIES) {
+    if (have.has(name.toLowerCase())) continue;
+    try {
+      await sql`
+        insert into action_categories (couple_id, name)
+        values (${coupleId}, ${name})`;
+      have.add(name.toLowerCase());
+    } catch {
+      /* unique race */
+    }
+  }
+
+  const used = await sql<{ category: string }>`
+    select distinct category from action_types
+    where couple_id = ${coupleId} and archived = false`;
+  for (const row of used) {
+    const n = (row.category || "general").trim();
+    if (!n || have.has(n.toLowerCase())) continue;
+    try {
+      await sql`
+        insert into action_categories (couple_id, name)
+        values (${coupleId}, ${n})`;
+      have.add(n.toLowerCase());
+    } catch {
+      /* unique race */
+    }
+  }
+}
+
 async function notify(
   userId: string,
   coupleId: string,
@@ -220,6 +259,11 @@ async function notify(
   await sql`
     insert into notifications (id, user_id, couple_id, kind, title, body)
     values (${id("nt")}, ${userId}, ${coupleId}, ${kind}, ${title}, ${body})`;
+  void import("./push.server")
+    .then((m) => m.sendPushToUser(userId, title, body))
+    .catch(() => {
+      /* push is best-effort */
+    });
 }
 
 async function computeBalanceLive(userId: string, coupleId: string): Promise<Balance> {
@@ -503,6 +547,7 @@ export const unpair = createServerFn({ method: "POST" })
     await sql`delete from logged_actions where couple_id = ${c.id}`;
     await sql`delete from action_preferences where action_type_id in (select id from action_types where couple_id = ${c.id})`;
     await sql`delete from action_types where couple_id = ${c.id}`;
+    await sql`delete from action_categories where couple_id = ${c.id}`;
     await sql`delete from couples where id = ${c.id}`;
     await sql`update profiles set onboarding_step = 'pairing' where user_id = ${c.user_a}`;
     if (c.user_b) {
@@ -518,9 +563,10 @@ export const savePreferences = createServerFn({ method: "POST" })
     const { userId } = context as Ctx;
     const sql = await getSql();
     for (const p of prefs) {
+      const pts = clampBasePoints(p.preferred_points);
       await sql`
         insert into action_preferences (user_id, action_type_id, preferred_points)
-        values (${userId}, ${p.action_type_id}, ${p.preferred_points})
+        values (${userId}, ${p.action_type_id}, ${pts})
         on conflict (user_id, action_type_id)
         do update set preferred_points = excluded.preferred_points`;
     }
@@ -534,6 +580,7 @@ export const listActionTypes = createServerFn({ method: "GET" })
     const c = await getActiveCouple(userId);
     if (!c || !c.user_b) return [] as ActionType[];
     await syncDefaultActions(c.id, userId);
+    await syncCategories(c.id);
     const sql = await getSql();
     const partner = partnerIdOf(c, userId);
     return sql<ActionType>`
@@ -554,6 +601,7 @@ export const listMyPreferenceTargets = createServerFn({ method: "GET" })
     const c = await getActiveCouple(userId);
     if (!c) return [] as (ActionType & { my_points: number | null })[];
     await syncDefaultActions(c.id, userId);
+    await syncCategories(c.id);
     const sql = await getSql();
     // Full catalog: all defaults + custom actions for this nest (matches Log list)
     return sql<ActionType & { my_points: number | null }>`
@@ -584,22 +632,173 @@ export const upsertActionType = createServerFn({ method: "POST" })
     const c = await getActiveCouple(userId);
     if (!c?.user_b) throw new Error("Pair first");
     const sql = await getSql();
+    const points = clampBasePoints(data.base_points);
+    const category = (data.category ?? "general").trim() || "general";
+    await syncCategories(c.id);
     if (data.id) {
       await sql`
         update action_types set
           name = ${data.name},
           kind = ${data.kind},
-          base_points = ${data.base_points},
-          category = ${data.category ?? "general"},
+          base_points = ${points},
+          category = ${category},
           archived = ${data.archive ?? false}
         where id = ${data.id} and couple_id = ${c.id}`;
       return { id: data.id };
     }
     const rows = await sql<{ id: number }>`
       insert into action_types (couple_id, name, kind, base_points, category, created_by)
-      values (${c.id}, ${data.name}, ${data.kind}, ${data.base_points}, ${data.category ?? "general"}, ${userId})
+      values (${c.id}, ${data.name}, ${data.kind}, ${points}, ${category}, ${userId})
       returning id`;
     return { id: rows[0].id };
+  });
+
+export const listCategories = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { userId } = context as Ctx;
+    const c = await getActiveCouple(userId);
+    if (!c) return [] as ActionCategory[];
+    await syncCategories(c.id);
+    const sql = await getSql();
+    return sql<ActionCategory>`
+      select ac.id, ac.couple_id, ac.name, ac.archived,
+        (
+          select count(*)::int from action_types at
+          where at.couple_id = ac.couple_id
+            and lower(at.category) = lower(ac.name)
+            and at.archived = false
+        ) as action_count
+      from action_categories ac
+      where ac.couple_id = ${c.id} and ac.archived = false
+      order by ac.name`;
+  });
+
+export const upsertCategory = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (d: { id?: number; name: string; archive?: boolean }) => d,
+  )
+  .handler(async ({ context, data }) => {
+    const { userId } = context as Ctx;
+    const c = await getActiveCouple(userId);
+    if (!c?.user_b) throw new Error("Pair first");
+    const sql = await getSql();
+    const name = data.name.trim();
+    if (!name) throw new Error("Give the group a name");
+    if (name.length > 40) throw new Error("Keep group names under 40 characters");
+
+    if (data.id && data.archive) {
+      const rows = await sql<{ name: string }>`
+        select name from action_categories
+        where id = ${data.id} and couple_id = ${c.id}`;
+      const old = rows[0]?.name;
+      if (!old) throw new Error("Group not found");
+      if (old.toLowerCase() === "general") {
+        throw new Error("“general” stays — it’s the fallback group");
+      }
+      await sql`
+        update action_types set category = 'general'
+        where couple_id = ${c.id} and lower(category) = lower(${old})`;
+      await sql`
+        update logged_actions set category = 'general'
+        where couple_id = ${c.id} and lower(category) = lower(${old})`;
+      await sql`
+        update action_categories set archived = true
+        where id = ${data.id} and couple_id = ${c.id}`;
+      const general = await sql<{ id: number }>`
+        select id from action_categories
+        where couple_id = ${c.id} and lower(name) = 'general' and archived = false`;
+      if (!general[0]) {
+        await sql`
+          insert into action_categories (couple_id, name)
+          values (${c.id}, 'general')`;
+      }
+      return { id: data.id, archived: true as const };
+    }
+
+    if (data.id) {
+      const rows = await sql<{ name: string }>`
+        select name from action_categories
+        where id = ${data.id} and couple_id = ${c.id}`;
+      const old = rows[0]?.name;
+      if (!old) throw new Error("Group not found");
+      if (old.toLowerCase() === name.toLowerCase()) return { id: data.id };
+      const clash = await sql<{ id: number }>`
+        select id from action_categories
+        where couple_id = ${c.id} and lower(name) = lower(${name}) and archived = false
+          and id != ${data.id}`;
+      if (clash[0]) throw new Error("That group name is already in use");
+      await sql`
+        update action_categories set name = ${name}
+        where id = ${data.id} and couple_id = ${c.id}`;
+      await sql`
+        update action_types set category = ${name}
+        where couple_id = ${c.id} and lower(category) = lower(${old})`;
+      await sql`
+        update logged_actions set category = ${name}
+        where couple_id = ${c.id} and lower(category) = lower(${old})`;
+      return { id: data.id };
+    }
+
+    const clash = await sql<{ id: number }>`
+      select id from action_categories
+      where couple_id = ${c.id} and lower(name) = lower(${name}) and archived = false`;
+    if (clash[0]) throw new Error("That group already exists");
+    const inserted = await sql<{ id: number }>`
+      insert into action_categories (couple_id, name)
+      values (${c.id}, ${name})
+      returning id`;
+    return { id: inserted[0].id };
+  });
+
+export const getPushPublicKey = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    try {
+      const { getVapidKeys } = await import("./push.server");
+      const keys = await getVapidKeys();
+      return { publicKey: keys.publicKey };
+    } catch {
+      return { publicKey: "" };
+    }
+  });
+
+export const getPushStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { userId } = context as Ctx;
+    try {
+      const { hasSubscription } = await import("./push.server");
+      return { enabled: await hasSubscription(userId) };
+    } catch {
+      return { enabled: false };
+    }
+  });
+
+export const savePushSubscription = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { endpoint: string; p256dh: string; auth: string }) => d)
+  .handler(async ({ context, data }) => {
+    const { userId } = context as Ctx;
+    const { saveSubscription } = await import("./push.server");
+    await saveSubscription({
+      userId,
+      endpoint: data.endpoint,
+      p256dh: data.p256dh,
+      auth: data.auth,
+    });
+    return { ok: true };
+  });
+
+export const removePushSubscription = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((d: { endpoint?: string } | undefined) => d ?? {})
+  .handler(async ({ context, data }) => {
+    const { userId } = context as Ctx;
+    const { removeSubscription } = await import("./push.server");
+    await removeSubscription(userId, data.endpoint);
+    return { ok: true };
   });
 
 export const logAction = createServerFn({ method: "POST" })
@@ -639,11 +838,14 @@ export const logAction = createServerFn({ method: "POST" })
     const pref = await sql<{ preferred_points: number }>`
       select preferred_points from action_preferences
       where user_id = ${applies_to} and action_type_id = ${at.id}`;
-    let points = data.points_override ?? pref[0]?.preferred_points ?? at.base_points;
+    let points = clampBasePoints(
+      data.points_override ?? pref[0]?.preferred_points ?? at.base_points,
+    );
     const detail = Boolean(data.attention_to_detail) && at.kind === "positive";
-    if (detail) points += 2;
     if (at.kind === "negative" && points > 0) points = -Math.abs(points);
     if (at.kind === "positive" && points < 0) points = Math.abs(points);
+    points = clampBasePoints(points);
+    if (detail) points += 2;
 
     const photo =
       data.photo_data && data.photo_data.length < 700_000 ? data.photo_data : null;
@@ -810,7 +1012,10 @@ export const reviewAction = createServerFn({ method: "POST" })
           reviewed_at = now(), reviewed_by = ${userId}, updated_at = now()
         where id = ${a.id}`;
     } else if (data.decision === "modify") {
-      const proposed = data.points ?? a.points;
+      const proposed = clampLoggedPoints(data.points ?? a.points, {
+        detail: a.attention_to_detail,
+        kind: a.kind,
+      });
       // Partner proposes a new score — original logger must agree
       await sql`
         update logged_actions set
@@ -864,7 +1069,10 @@ export const resolveModification = createServerFn({ method: "POST" })
     if (a.status !== "modification_pending") throw new Error("No tweak waiting");
     const partner = partnerIdOf(c, userId)!;
     if (data.decision === "accept") {
-      const pts = a.proposed_points ?? a.points;
+      const pts = clampLoggedPoints(a.proposed_points ?? a.points, {
+        detail: a.attention_to_detail,
+        kind: a.kind,
+      });
       await sql`
         update logged_actions set
           status = 'modified',
@@ -927,8 +1135,11 @@ export const editLoggedAction = createServerFn({ method: "POST" })
       throw new Error("Edit window closed (24h)");
     }
     if (a.status === "declined") throw new Error("Already declined");
-    const points = data.points ?? a.points;
     const detail = data.attention_to_detail ?? a.attention_to_detail;
+    const points = clampLoggedPoints(data.points ?? a.points, {
+      detail,
+      kind: a.kind,
+    });
     await sql`
       update logged_actions set
         points = ${points},
