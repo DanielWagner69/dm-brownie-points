@@ -62,7 +62,8 @@ export type LoggedAction = {
   kind: "positive" | "negative";
   logged_by: string;
   applies_to: string;
-  direction: "self" | "partner";
+  /** Who performed / is tagged. "both" = shared moment (points still via applies_to). */
+  direction: "self" | "partner" | "both";
   points: number;
   proposed_points?: number | null;
   proposed_note?: string | null;
