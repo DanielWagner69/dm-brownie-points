@@ -42,6 +42,7 @@ export {
   exportHistory,
   requestDeleteAction,
   respondToDeletion,
+  addActionReply,
 } from "./server/actions";
 
 export {
