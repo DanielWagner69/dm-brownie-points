@@ -44,12 +44,33 @@ function yearsAgoLocalISO(years: number) {
   return `${y}-${m}-${day}`;
 }
 
-/** Points value depends on who received the action (their preference). */
-function pointsForDirection(a: ActionType, direction: "self" | "partner" | "both") {
+function pointsForDirection(a: ActionType, direction: "self" | "partner") {
   if (direction === "self") {
     return a.preferred_points ?? a.base_points;
   }
   return a.my_points ?? a.base_points;
+}
+
+function relativeApplies(
+  applies: string | undefined,
+  userId: string | undefined,
+  couple: { user_a: string; user_b: string | null } | null | undefined,
+): "me" | "them" | "both" {
+  if (!applies || applies === "both" || !userId || !couple) return "both";
+  if (applies === "user_a") return couple.user_a === userId ? "me" : "them";
+  if (applies === "user_b") return couple.user_b === userId ? "me" : "them";
+  return "both";
+}
+
+function canShowForDirection(
+  applies: string | undefined,
+  direction: "self" | "partner",
+  userId: string | undefined,
+  couple: { user_a: string; user_b: string | null } | null | undefined,
+): boolean {
+  const rel = relativeApplies(applies, userId, couple);
+  if (rel === "both") return true;
+  return direction === "self" ? rel === "me" : rel === "them";
 }
 
 type HoldState = {
@@ -69,8 +90,7 @@ function LogPage() {
   const cats = useCategories(Boolean(user));
   const invalidate = useInvalidatePaws();
 
-  // Default: raising against partner (what they did)
-  const [direction, setDirection] = useState<"self" | "partner" | "both">("partner");
+  const [direction, setDirection] = useState<"self" | "partner">("partner");
   const [kind, setKind] = useState<"all" | "positive" | "negative">("all");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
@@ -108,6 +128,7 @@ function LogPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [cats.data, types.data]);
 
+  const couple = dash.data?.couple;
   const filtered = useMemo(() => {
     let list = types.data ?? [];
     if (kind !== "all") list = list.filter((a) => a.kind === kind);
@@ -119,8 +140,11 @@ function LogPage() {
           a.name.toLowerCase().includes(s) || a.category.toLowerCase().includes(s),
       );
     }
+    list = list.filter((a) =>
+      canShowForDirection(a.applies_to, direction, user?.id, couple),
+    );
     return list;
-  }, [types.data, kind, category, search]);
+  }, [types.data, kind, category, search, direction, user?.id, couple]);
 
   const fuzzySuggestions = useMemo(
     () => suggestActions(newName, types.data ?? [], 5),
@@ -131,10 +155,8 @@ function LogPage() {
   const suggested =
     selected && detail && selected.kind === "positive" ? basePts + 2 : basePts;
 
-  const beneficiaryLabel =
-    direction === "self" ? "you" : direction === "both" ? "both of you" : partnerLabel;
-  const beneficiaryName =
-    direction === "self" ? "your" : direction === "both" ? "shared" : `${partnerLabel}'s`;
+  const beneficiaryLabel = direction === "self" ? "you" : partnerLabel;
+  const beneficiaryName = direction === "self" ? "your" : `${partnerLabel}'s`;
 
   useEffect(() => {
     if (!hold) {
@@ -202,8 +224,7 @@ function LogPage() {
           photo_data: photo,
           attention_to_detail: detail,
           points_override: clampBasePoints(basePts),
-          occurred_on:
-            retrospective && occurredOn ? occurredOn : null,
+          occurred_on: retrospective && occurredOn ? occurredOn : null,
         },
       });
       if (res.status === "held" && res.held_until) {
@@ -240,8 +261,20 @@ function LogPage() {
     setCreating(true);
     try {
       const base = clampBasePoints(kind === "negative" ? -Math.abs(pts) : Math.abs(pts));
+      let applies_to: "both" | "user_a" | "user_b" = "both";
+      if (couple?.user_a && couple?.user_b && user?.id) {
+        const meSide = couple.user_a === user.id ? "user_a" : "user_b";
+        const themSide = couple.user_a === user.id ? "user_b" : "user_a";
+        applies_to = direction === "self" ? meSide : themSide;
+      }
       const { id } = await upsertActionType({
-        data: { name: name.trim(), kind, base_points: base, category: newCategory },
+        data: {
+          name: name.trim(),
+          kind,
+          base_points: base,
+          category: newCategory,
+          applies_to,
+        },
       });
       invalidate();
       const refreshed = await types.refetch();
@@ -257,6 +290,7 @@ function LogPage() {
           category: newCategory || "general",
           is_default: false,
           archived: false,
+          applies_to,
           preferred_points: base,
           my_points: base,
         });
@@ -358,11 +392,11 @@ function LogPage() {
           <CardHeader>
             <CardTitle className="text-base">{t("Who is this about?")}</CardTitle>
             <CardDescription>
-              Who performed the action decides whose balance changes. The other person’s
-              rating sets how many points. Shared moments can be tagged as both.
+              Only actions assigned to that person (or both of you) appear below. The other
+              person’s rating sets how many Brownie Points.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <CardContent className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setDirection("self")}
@@ -376,7 +410,7 @@ function LogPage() {
               <p className="text-sm font-semibold text-foreground">{t("What I did")}</p>
               <p className="mt-1 text-xs leading-snug">
                 Points go to <span className="font-medium text-foreground">you</span>. Value from{" "}
-                {partnerLabel}'s rating.
+                {partnerLabel}&apos;s rating.
               </p>
             </button>
             <button
@@ -393,21 +427,6 @@ function LogPage() {
               <p className="mt-1 text-xs leading-snug">
                 Points go to <span className="font-medium text-foreground">{partnerLabel}</span>.
                 Value from your rating.
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDirection("both")}
-              className={cn(
-                "min-h-[88px] rounded-2xl border-2 px-3 py-3 text-left transition-colors",
-                direction === "both"
-                  ? "border-primary bg-primary/15 text-foreground shadow-sm"
-                  : "border-border bg-surface text-muted-foreground",
-              )}
-            >
-              <p className="text-sm font-semibold text-foreground">We both did</p>
-              <p className="mt-1 text-xs leading-snug">
-                Shared moment — points still go to {partnerLabel} (you rate it). Coloured as both.
               </p>
             </button>
           </CardContent>
@@ -595,10 +614,8 @@ function LogPage() {
 
         <p className="text-xs text-muted-foreground">
           {direction === "self"
-            ? `Showing ${partnerLabel}'s preferred points (they received it → you earn that value).`
-            : direction === "both"
-              ? `Shared · showing your preferred points (points attributed to ${partnerLabel}).`
-              : `Showing your preferred points (you received it → ${partnerLabel} earns that value).`}
+            ? `Showing actions that apply to you · points from ${partnerLabel}'s rating.`
+            : `Showing actions that apply to ${partnerLabel} · points from your rating.`}
         </p>
 
         <div className="space-y-2">
