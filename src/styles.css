@@ -49,6 +49,9 @@
   --positive: #2f7a52;
   --danger: #c23d3d;
   --danger-fg: #fffaf5;
+  --partner-me: #c45a2c;
+  --partner-them: #4a6fb5;
+  --partner-both: #7a6a9a;
 }
 
 [data-theme="dusk"] {
@@ -69,6 +72,9 @@
   --positive: #6dcea0;
   --danger: #f07a7a;
   --danger-fg: #1a1010;
+  --partner-me: #e8955c;
+  --partner-them: #6a9ad4;
+  --partner-both: #9a8ab8;
 }
 
 [data-theme="blossom"] {
@@ -89,6 +95,9 @@
   --positive: #2f7a52;
   --danger: #c23d3d;
   --danger-fg: #fff8fa;
+  --partner-me: #b8436a;
+  --partner-them: #4a7ab8;
+  --partner-both: #8a6a9a;
 }
 
 /* Burgundy — deep wine + brighter rose accents */
@@ -110,6 +119,9 @@
   --positive: #6dcea0;
   --danger: #ff7a8a;
   --danger-fg: #1a0a10;
+  --partner-me: #d63d6a;
+  --partner-them: #5a8ad4;
+  --partner-both: #9a7ab0;
 }
 
 /* Flight — deep teal + brighter mint accents */
@@ -131,6 +143,9 @@
   --positive: #7ef0a8;
   --danger: #ff8f9a;
   --danger-fg: #2a0a10;
+  --partner-me: #3fe0d0;
+  --partner-them: #7a9ae0;
+  --partner-both: #a08ac8;
 }
 
 /* Sky — clear blue with stronger button accents */
@@ -152,6 +167,9 @@
   --positive: #2a8f5c;
   --danger: #d63b54;
   --danger-fg: #ffffff;
+  --partner-me: #1f8fd4;
+  --partner-them: #c45a8a;
+  --partner-both: #7a6a9a;
 }
 
 /* Naughty — deep plum + hot pink buttons */
@@ -173,6 +191,9 @@
   --positive: #7ddea0;
   --danger: #ff6b8a;
   --danger-fg: #1a0a14;
+  --partner-me: #ff4d98;
+  --partner-them: #6a8ad4;
+  --partner-both: #b08ac0;
 }
 
 @layer base {
@@ -243,4 +264,18 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Action performer colour tags (theme-aware) */
+.action-tag-me {
+  border-left: 4px solid var(--partner-me);
+  background: color-mix(in oklab, var(--partner-me) 8%, var(--card));
+}
+.action-tag-them {
+  border-left: 4px solid var(--partner-them);
+  background: color-mix(in oklab, var(--partner-them) 8%, var(--card));
+}
+.action-tag-both {
+  border-left: 4px solid var(--partner-both);
+  background: color-mix(in oklab, var(--partner-both) 10%, var(--card));
 }
