@@ -24,7 +24,7 @@ import {
 import { downloadText } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import type { ThemeId } from "@/lib/paws/types";
+import type { ActionAppliesTo, ThemeId } from "@/lib/paws/types";
 import { tone, toneActionName } from "@/lib/paws/tone";
 import { cn, formatPoints } from "@/lib/utils";
 import {
@@ -53,6 +53,7 @@ function SettingsPage() {
   const [newAction, setNewAction] = useState("");
   const [newPoints, setNewPoints] = useState(1);
   const [newKind, setNewKind] = useState<"positive" | "negative">("positive");
+  const [newApplies, setNewApplies] = useState<"both" | "me" | "them">("both");
   const [newCatName, setNewCatName] = useState("");
   const [editingCat, setEditingCat] = useState<number | null>(null);
   const [editingCatName, setEditingCatName] = useState("");
@@ -92,6 +93,23 @@ function SettingsPage() {
   }, [actionTypes.data]);
 
   if (!d || !prefs) return null;
+
+  const couple = d.couple;
+  const partnerName = d.couple?.partner_name || d.profile.partner_nickname || "Partner";
+
+  function absoluteApplies(rel: "both" | "me" | "them"): ActionAppliesTo {
+    if (rel === "both" || !couple?.user_a || !user?.id) return "both";
+    const meSide: ActionAppliesTo = couple.user_a === user.id ? "user_a" : "user_b";
+    const themSide: ActionAppliesTo = couple.user_a === user.id ? "user_b" : "user_a";
+    return rel === "me" ? meSide : themSide;
+  }
+
+  function relativeFromAbsolute(abs: string | undefined): "both" | "me" | "them" {
+    if (!abs || abs === "both" || !couple?.user_a || !user?.id) return "both";
+    if (abs === "user_a") return couple.user_a === user.id ? "me" : "them";
+    if (abs === "user_b") return couple.user_b === user.id ? "me" : "them";
+    return "both";
+  }
 
   const theme = d.profile.theme;
   const t = (s: string) => tone(s, theme);
@@ -427,8 +445,9 @@ function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">{t("All actions & ratings")}</CardTitle>
             <CardDescription>
-              Your ratings (primary) and partner ratings (smaller). Ratings cap at ±10 —
-              Attention to Detail can add +2 on top when you log.
+              Your ratings (primary) and partner ratings (smaller). Set who each action
+              applies to — single-partner actions only appear when raising for that person.
+              Ratings cap at ±10; Attention to Detail can add +2 when you log.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -452,39 +471,75 @@ function SettingsPage() {
                       ) : null}
                     </span>
                   </p>
-                  <select
-                    className="mt-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs"
-                    value={a.category || "general"}
-                    onChange={async (e) => {
-                      const next = e.target.value.trim() || "general";
-                      try {
-                        await upsertActionType({
-                          data: {
-                            id: a.id,
-                            name: a.name,
-                            kind: a.kind,
-                            base_points: a.base_points,
-                            category: next,
-                          },
-                        });
-                        toast.success("Group updated");
-                        invalidate();
-                      } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Could not update group");
-                      }
-                    }}
-                  >
-                    {[
-                      a.category || "general",
-                      ...(categories.data ?? []).map((c) => c.name),
-                    ]
-                      .filter((v, i, arr) => arr.indexOf(v) === i)
-                      .map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <select
+                      className="rounded-lg border border-border bg-surface px-2 py-1 text-xs"
+                      value={a.category || "general"}
+                      onChange={async (e) => {
+                        const next = e.target.value.trim() || "general";
+                        try {
+                          await upsertActionType({
+                            data: {
+                              id: a.id,
+                              name: a.name,
+                              kind: a.kind,
+                              base_points: a.base_points,
+                              category: next,
+                              applies_to: a.applies_to ?? "both",
+                            },
+                          });
+                          toast.success("Group updated");
+                          invalidate();
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Could not update group");
+                        }
+                      }}
+                    >
+                      {[
+                        a.category || "general",
+                        ...(categories.data ?? []).map((c) => c.name),
+                      ]
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                    </select>
+                    <select
+                      className="rounded-lg border border-border bg-surface px-2 py-1 text-xs"
+                      value={relativeFromAbsolute(a.applies_to)}
+                      title="Who this action can be raised against"
+                      onChange={async (e) => {
+                        const rel = e.target.value as "both" | "me" | "them";
+                        try {
+                          await upsertActionType({
+                            data: {
+                              id: a.id,
+                              name: a.name,
+                              kind: a.kind,
+                              base_points: a.base_points,
+                              category: a.category,
+                              applies_to: absoluteApplies(rel),
+                            },
+                          });
+                          toast.success("Who it applies to updated");
+                          invalidate();
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Could not update");
+                        }
+                      }}
+                    >
+                      <option value="both">Both of you</option>
+                      <option value="me">Only you</option>
+                      <option value="them">Only {partnerName}</option>
+                    </select>
+                  </div>
+                  {relativeFromAbsolute(a.applies_to) !== "both" ? (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Single-partner action — only one score is used when logging.
+                    </p>
+                  ) : null}
                 </div>
                 <PointsInput
                   className="w-20"
@@ -578,6 +633,35 @@ function SettingsPage() {
                 aria-label="Base Brownie Points"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Who can this be raised against?</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ["both", "Both"],
+                    ["me", "Only you"],
+                    ["them", `Only ${partnerName}`],
+                  ] as const
+                ).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setNewApplies(val)}
+                    className={cn(
+                      "rounded-xl border-2 px-2 py-2 text-xs font-medium transition-colors",
+                      newApplies === val
+                        ? "border-primary bg-primary/15 text-foreground"
+                        : "border-border bg-surface text-muted-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                e.g. driving actions → only the driver. Most actions stay as both.
+              </p>
+            </div>
             <Button
               variant="secondary"
               onClick={async () => {
@@ -588,9 +672,11 @@ function SettingsPage() {
                     kind: newKind,
                     base_points:
                       newKind === "negative" ? -Math.abs(newPoints) : Math.abs(newPoints),
+                    applies_to: absoluteApplies(newApplies),
                   },
                 });
                 setNewAction("");
+                setNewApplies("both");
                 toast.success("Action added — it shows in Nest and Log");
                 invalidate();
               }}
