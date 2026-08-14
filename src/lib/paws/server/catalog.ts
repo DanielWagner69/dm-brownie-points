@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { clampBasePoints } from "@/lib/utils";
-import type { ActionCategory, ActionType } from "../types";
+import type { ActionAppliesTo, ActionCategory, ActionType } from "../types";
 import {
   getActiveCouple,
   partnerIdOf,
@@ -11,6 +11,11 @@ import {
 } from "./helpers";
 
 type Ctx = { userId: string };
+
+function normalizeAppliesTo(v: unknown): ActionAppliesTo {
+  if (v === "user_a" || v === "user_b" || v === "both") return v;
+  return "both";
+}
 
 export const savePreferences = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -39,15 +44,20 @@ export const listActionTypes = createServerFn({ method: "GET" })
     await syncCategories(c.id);
     const sql = await getSql();
     const partner = partnerIdOf(c, userId);
-    return sql<ActionType>`
+    const rows = await sql<ActionType>`
       select at.id, at.couple_id, at.name, at.kind, at.base_points, at.category,
              at.is_default, at.archived,
+             coalesce(at.applies_to, 'both') as applies_to,
              ap.preferred_points
       from action_types at
       left join action_preferences ap
         on ap.action_type_id = at.id and ap.user_id = ${partner}
       where at.couple_id = ${c.id} and at.archived = false
       order by at.kind desc, at.base_points desc, at.name`;
+    return rows.map((r) => ({
+      ...r,
+      applies_to: normalizeAppliesTo(r.applies_to),
+    }));
   });
 
 export const listMyPreferenceTargets = createServerFn({ method: "GET" })
@@ -59,15 +69,21 @@ export const listMyPreferenceTargets = createServerFn({ method: "GET" })
     await syncDefaultActions(c.id, userId);
     await syncCategories(c.id);
     const sql = await getSql();
-    return sql<ActionType & { my_points: number | null }>`
+    const rows = await sql<ActionType & { my_points: number | null }>`
       select at.id, at.couple_id, at.name, at.kind, at.base_points, at.category,
-             at.is_default, at.archived, at.base_points as preferred_points,
+             at.is_default, at.archived,
+             coalesce(at.applies_to, 'both') as applies_to,
+             at.base_points as preferred_points,
              ap.preferred_points as my_points
       from action_types at
       left join action_preferences ap
         on ap.action_type_id = at.id and ap.user_id = ${userId}
       where at.couple_id = ${c.id} and at.archived = false
       order by at.kind desc, at.base_points desc, at.name`;
+    return rows.map((r) => ({
+      ...r,
+      applies_to: normalizeAppliesTo(r.applies_to),
+    }));
   });
 
 export const upsertActionType = createServerFn({ method: "POST" })
@@ -80,6 +96,8 @@ export const upsertActionType = createServerFn({ method: "POST" })
       base_points: number;
       category?: string;
       archive?: boolean;
+      /** Absolute to the couple: both | user_a | user_b */
+      applies_to?: ActionAppliesTo;
     }) => d,
   )
   .handler(async ({ context, data }) => {
@@ -89,6 +107,7 @@ export const upsertActionType = createServerFn({ method: "POST" })
     const sql = await getSql();
     const points = clampBasePoints(data.base_points);
     const category = (data.category ?? "general").trim() || "general";
+    const applies = normalizeAppliesTo(data.applies_to);
     await syncCategories(c.id);
     if (data.id) {
       await sql`
@@ -97,13 +116,14 @@ export const upsertActionType = createServerFn({ method: "POST" })
           kind = ${data.kind},
           base_points = ${points},
           category = ${category},
-          archived = ${data.archive ?? false}
+          archived = ${data.archive ?? false},
+          applies_to = ${applies}
         where id = ${data.id} and couple_id = ${c.id}`;
       return { id: data.id };
     }
     const rows = await sql<{ id: number }>`
-      insert into action_types (couple_id, name, kind, base_points, category, created_by)
-      values (${c.id}, ${data.name}, ${data.kind}, ${points}, ${category}, ${userId})
+      insert into action_types (couple_id, name, kind, base_points, category, created_by, applies_to)
+      values (${c.id}, ${data.name}, ${data.kind}, ${points}, ${category}, ${userId}, ${applies})
       returning id`;
     return { id: rows[0].id };
   });
