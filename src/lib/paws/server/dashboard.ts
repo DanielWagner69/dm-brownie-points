@@ -11,6 +11,7 @@ import type {
   Profile,
   RewardClaim,
 } from "../types";
+import { hoursFromNow } from "@/lib/utils";
 import {
   getProfile,
   ensureProfile,
@@ -20,14 +21,9 @@ import {
   buildTreatTips,
   weeklySummaryText,
   notify,
-  hoursFromNow,
 } from "./helpers";
-import { hoursFromNow as hoursFromNowUtil } from "@/lib/utils";
 
 type Ctx = { userId: string };
-
-// Re-export hoursFromNow from helpers or utils - ensure available
-const hoursFromNowFn = hoursFromNowUtil;
 
 export const getDashboard = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -260,8 +256,8 @@ export const settleExpired = createServerFn({ method: "POST" })
         and held_until is not null
         and held_until < now()`;
     for (const a of expiredHeld) {
-      const editable = hoursFromNowFn(24).toISOString();
-      const review = hoursFromNowFn(48).toISOString();
+      const editable = hoursFromNow(24).toISOString();
+      const review = hoursFromNow(48).toISOString();
       await sql`
         update logged_actions set
           status = 'pending',
