@@ -19,14 +19,23 @@ export const logAction = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
     (d: {
-      action_type_id: number;
+      /** Existing library action. Omit (or pass null) when logging a one-off. */
+      action_type_id?: number | null;
       direction: "self" | "partner";
       note?: string;
       photo_data?: string | null;
       attention_to_detail?: boolean;
       points_override?: number;
+      /** YYYY-MM-DD for retrospective logs (optional). Still needs partner approval. */
       occurred_on?: string | null;
+      /** Skip the 30s grace — notify partner immediately */
       send_now?: boolean;
+      /** One-off: log without adding to the reusable action library */
+      one_off?: boolean;
+      /** Required when one_off is true */
+      one_off_name?: string;
+      one_off_kind?: "positive" | "negative";
+      one_off_category?: string;
     }) => d,
   )
   .handler(async ({ context, data }) => {
@@ -36,28 +45,59 @@ export const logAction = createServerFn({ method: "POST" })
     const partner = partnerIdOf(c, userId)!;
     const applies_to = data.direction === "self" ? userId : partner;
     const sql = await getSql();
-    const types = await sql<{
-      id: number;
-      name: string;
-      kind: "positive" | "negative";
-      base_points: number;
-      category: string;
-    }>`select id, name, kind, base_points, category from action_types
-       where id = ${data.action_type_id} and couple_id = ${c.id} and archived = false`;
-    const at = types[0];
-    if (!at) throw new Error("Action not found");
 
-    const pref = await sql<{ preferred_points: number }>`
-      select preferred_points from action_preferences
-      where user_id = ${applies_to} and action_type_id = ${at.id}`;
-    let points = clampBasePoints(
-      data.points_override ?? pref[0]?.preferred_points ?? at.base_points,
-    );
-    const detail = Boolean(data.attention_to_detail) && at.kind === "positive";
-    if (at.kind === "negative" && points > 0) points = -Math.abs(points);
-    if (at.kind === "positive" && points < 0) points = Math.abs(points);
-    points = clampBasePoints(points);
-    if (detail) points += 2;
+    const isOneOff = Boolean(data.one_off) || !data.action_type_id;
+    let actionTypeId: number | null = null;
+    let actionName: string;
+    let actionKind: "positive" | "negative";
+    let actionCategory: string;
+    let points: number;
+    let detail: boolean;
+
+    if (isOneOff) {
+      const name = (data.one_off_name ?? "").trim();
+      if (!name) throw new Error("Give the one-off a name");
+      if (name.length > 80) throw new Error("Keep one-off names under 80 characters");
+      actionKind = data.one_off_kind ?? "positive";
+      actionCategory = (data.one_off_category ?? "general").trim() || "general";
+      actionName = name;
+      points = clampBasePoints(
+        data.points_override ?? (actionKind === "negative" ? -1 : 1),
+      );
+      detail = Boolean(data.attention_to_detail) && actionKind === "positive";
+      if (actionKind === "negative" && points > 0) points = -Math.abs(points);
+      if (actionKind === "positive" && points < 0) points = Math.abs(points);
+      points = clampBasePoints(points);
+      if (detail) points += 2;
+    } else {
+      const types = await sql<{
+        id: number;
+        name: string;
+        kind: "positive" | "negative";
+        base_points: number;
+        category: string;
+      }>`select id, name, kind, base_points, category from action_types
+         where id = ${data.action_type_id} and couple_id = ${c.id} and archived = false`;
+      const at = types[0];
+      if (!at) throw new Error("Action not found");
+
+      const pref = await sql<{ preferred_points: number }>`
+        select preferred_points from action_preferences
+        where user_id = ${applies_to} and action_type_id = ${at.id}`;
+      points = clampBasePoints(
+        data.points_override ?? pref[0]?.preferred_points ?? at.base_points,
+      );
+      detail = Boolean(data.attention_to_detail) && at.kind === "positive";
+      if (at.kind === "negative" && points > 0) points = -Math.abs(points);
+      if (at.kind === "positive" && points < 0) points = Math.abs(points);
+      points = clampBasePoints(points);
+      if (detail) points += 2;
+
+      actionTypeId = at.id;
+      actionName = at.name;
+      actionKind = at.kind;
+      actionCategory = at.category;
+    }
 
     const photo =
       data.photo_data && data.photo_data.length < 700_000 ? data.photo_data : null;
@@ -91,8 +131,8 @@ export const logAction = createServerFn({ method: "POST" })
           direction, points, attention_to_detail, note, photo_data, category,
           status, editable_until, review_until, held_until, created_at, updated_at
         ) values (
-          ${actionId}, ${c.id}, ${at.id}, ${at.name}, ${at.kind}, ${userId}, ${applies_to},
-          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${at.category},
+          ${actionId}, ${c.id}, ${actionTypeId}, ${actionName}, ${actionKind}, ${userId}, ${applies_to},
+          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${actionCategory},
           ${status}, ${editable}::timestamptz, ${review}::timestamptz,
           ${heldUntil}::timestamptz, ${occurredAt}::timestamptz, now()
         )`;
@@ -103,8 +143,8 @@ export const logAction = createServerFn({ method: "POST" })
           direction, points, attention_to_detail, note, photo_data, category,
           status, editable_until, review_until, held_until
         ) values (
-          ${actionId}, ${c.id}, ${at.id}, ${at.name}, ${at.kind}, ${userId}, ${applies_to},
-          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${at.category},
+          ${actionId}, ${c.id}, ${actionTypeId}, ${actionName}, ${actionKind}, ${userId}, ${applies_to},
+          ${data.direction}, ${points}, ${detail}, ${data.note ?? ""}, ${photo}, ${actionCategory},
           ${status}, ${editable}::timestamptz, ${review}::timestamptz, ${heldUntil}::timestamptz
         )`;
     }
@@ -117,7 +157,7 @@ export const logAction = createServerFn({ method: "POST" })
         c.id,
         "action",
         `${logger?.display_name ?? "Your little prince"} logged something`,
-        `${at.name} · ${points > 0 ? "+" : ""}${points} Brownie Points${whenNote} — review when you’re ready.`,
+        `${actionName} · ${points > 0 ? "+" : ""}${points} Brownie Points${whenNote} — review when you’re ready.`,
       );
     }
     await updateStreak(userId, c.id);
