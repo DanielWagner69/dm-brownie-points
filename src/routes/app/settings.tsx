@@ -25,6 +25,7 @@ import { downloadText } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type { ActionAppliesTo, ThemeId } from "@/lib/paws/types";
+import { isLockedCategory } from "@/lib/paws/defaults";
 import { tone, toneActionName } from "@/lib/paws/tone";
 import { cn, formatPoints } from "@/lib/utils";
 import {
@@ -61,6 +62,7 @@ function SettingsPage() {
   const [pushBusy, setPushBusy] = useState(false);
   const [openGroups, setOpenGroups] = useState(false);
   const [openActions, setOpenActions] = useState(false);
+  const [actionSort, setActionSort] = useState<"score" | "alpha">("score");
 
   const actionTypes = useActionTypes(Boolean(user));
   const categories = useCategories(Boolean(user));
@@ -125,6 +127,16 @@ function SettingsPage() {
     { id: "sky", label: "Sky blue", swatch: "#3b9dd9", icon: Cloud },
     { id: "naughty", label: "Naughty", swatch: "#e84a8a", icon: Flame },
   ];
+
+  const sortedActions = [...(actionTypes.data ?? [])].sort((a, b) => {
+    if (actionSort === "alpha") {
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    }
+    const sa = Math.abs(a.my_points ?? a.base_points);
+    const sb = Math.abs(b.my_points ?? b.base_points);
+    if (sb !== sa) return sb - sa;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
 
   return (
     <AppShell title={t("Nest settings")} subtitle={t("Themes, taste, pairing")}>
@@ -332,8 +344,7 @@ function SettingsPage() {
               )}
             </div>
             <CardDescription>
-              Categories used on Log and in your library. Rename, add, or remove — actions in a
-              removed group move to “general”.
+              Love-language groups are locked (badges use them). Other groups you can rename or remove.
               {!openGroups ? (
                 <span className="mt-1 block text-primary">
                   {(categories.data ?? []).length} group{(categories.data ?? []).length === 1 ? "" : "s"} · tap to expand
@@ -383,21 +394,28 @@ function SettingsPage() {
                         <p className="text-sm font-medium capitalize">{c.name}</p>
                         <p className="text-[11px] text-muted-foreground">
                           {c.action_count ?? 0} action{(c.action_count ?? 0) === 1 ? "" : "s"}
+                          {isLockedCategory(c.name) ? " · locked for badges" : ""}
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Rename ${c.name}`}
-                        onClick={() => {
-                          setEditingCat(c.id);
-                          setEditingCatName(c.name);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {c.name.toLowerCase() !== "general" ? (
+                      {isLockedCategory(c.name) ? (
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          locked
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Rename ${c.name}`}
+                          onClick={() => {
+                            setEditingCat(c.id);
+                            setEditingCatName(c.name);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {!isLockedCategory(c.name) ? (
                         <Button
                           type="button"
                           size="sm"
@@ -486,7 +504,29 @@ function SettingsPage() {
           </CardHeader>
           {openActions ? (
             <CardContent className="space-y-3">
-              {(actionTypes.data ?? []).map((a) => (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant={actionSort === "score" ? "default" : "outline"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSort("score");
+                  }}
+                >
+                  Score · high → low
+                </Button>
+                <Button
+                  size="sm"
+                  variant={actionSort === "alpha" ? "default" : "outline"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSort("alpha");
+                  }}
+                >
+                  A → Z
+                </Button>
+              </div>
+              {sortedActions.map((a) => (
                 <div key={a.id} className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-medium leading-snug">{toneActionName(a.name, a.kind, theme, a.id)}</p>
