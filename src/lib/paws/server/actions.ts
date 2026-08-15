@@ -15,6 +15,9 @@ import {
 
 type Ctx = { userId: string };
 
+/** Free-edit window before the partner is notified (ms). */
+const HOLD_MS = 120_000;
+
 export const logAction = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
@@ -85,7 +88,7 @@ export const logAction = createServerFn({ method: "POST" })
     const review = hoursFromNow(48).toISOString();
     const sendNow = Boolean(data.send_now);
     const status = sendNow ? "pending" : "held";
-    const heldUntil = sendNow ? null : new Date(Date.now() + 30_000).toISOString();
+    const heldUntil = sendNow ? null : new Date(Date.now() + HOLD_MS).toISOString();
 
     let occurredAt: string | null = null;
     if (data.occurred_on && /^\d{4}-\d{2}-\d{2}$/.test(data.occurred_on)) {
@@ -225,7 +228,7 @@ export const resolveModification = createServerFn({ method: "POST" })
 
 export const proposeEditAction = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((d: { id: string; points?: number; note?: string; attention_to_detail?: boolean; category?: string; direction?: "self" | "partner" | "both" }) => d)
+  .validator((d: { id: string; points?: number; note?: string; attention_to_detail?: boolean; category?: string; direction?: "self" | "partner" | "both"; action_name?: string }) => d)
   .handler(async ({ context, data }) => {
     const { userId } = context as Ctx;
     const c = await getActiveCouple(userId);
@@ -248,14 +251,30 @@ export const proposeEditAction = createServerFn({ method: "POST" })
     const category = data.category !== undefined ? data.category : a.category;
     const direction = data.direction ?? a.direction;
     const applies_to = direction === "self" ? a.logged_by : direction === "partner" ? partnerIdOf(c, a.logged_by) ?? a.applies_to : a.applies_to;
-    await sql`update logged_actions set status = 'modification_pending', proposed_points = ${points}, proposed_note = ${note}, proposed_attention_to_detail = ${detail}, category = ${category}, direction = ${direction}, applies_to = ${applies_to}, edit_proposed_by = ${userId}, status_before_mod = ${a.status}, updated_at = now() where id = ${a.id}`;
-    await notify(partner, c.id, "review", "Edit needs your yes", `${me.display_name} wants “${a.action_name}” at ${points > 0 ? "+" : ""}${points} BP — open Nest or History to agree.`, { force: true });
+    const actionName =
+      data.action_name !== undefined
+        ? data.action_name.trim().slice(0, 80) || a.action_name
+        : a.action_name;
+    await sql`update logged_actions set status = 'modification_pending', proposed_points = ${points}, proposed_note = ${note}, proposed_attention_to_detail = ${detail}, category = ${category}, direction = ${direction}, applies_to = ${applies_to}, action_name = ${actionName}, edit_proposed_by = ${userId}, status_before_mod = ${a.status}, updated_at = now() where id = ${a.id}`;
+    await notify(partner, c.id, "review", "Edit needs your yes", `${me.display_name} wants “${actionName}” at ${points > 0 ? "+" : ""}${points} BP — open Nest or History to agree.`, { force: true });
     return { ok: true };
   });
 
 export const editLoggedAction = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((d: { id: string; points?: number; note?: string; category?: string; attention_to_detail?: boolean; direction?: "self" | "partner" | "both" }) => d)
+  .validator(
+    (d: {
+      id: string;
+      points?: number;
+      note?: string;
+      category?: string;
+      attention_to_detail?: boolean;
+      direction?: "self" | "partner" | "both";
+      action_name?: string;
+      /** Pass null to clear the photo; omit to leave unchanged. */
+      photo_data?: string | null;
+    }) => d,
+  )
   .handler(async ({ context, data }) => {
     const { userId } = context as Ctx;
     const c = await getActiveCouple(userId);
@@ -265,18 +284,50 @@ export const editLoggedAction = createServerFn({ method: "POST" })
     const a = rows[0];
     if (!a) throw new Error("Not found");
     if (a.logged_by !== userId) throw new Error("Only the logger can edit");
+    // Free-reign while still held (before partner sees it). After release, 24h window.
     if (a.status === "held") {
+      // ok — full free edit
+    } else if (a.status === "declined") {
+      throw new Error("Already declined");
     } else if (new Date(a.editable_until).getTime() < Date.now()) {
       throw new Error("Edit window closed (24h)");
     }
-    if (a.status === "declined") throw new Error("Already declined");
-    const detail = data.attention_to_detail ?? a.attention_to_detail;
+
+    const detail =
+      data.attention_to_detail !== undefined
+        ? Boolean(data.attention_to_detail) && a.kind === "positive"
+        : a.attention_to_detail;
     const points = clampLoggedPoints(data.points ?? a.points, { detail, kind: a.kind });
     const direction = data.direction ?? a.direction;
     const partner = partnerIdOf(c, a.logged_by);
-    const applies_to = direction === "self" ? a.logged_by : direction === "partner" ? partner ?? a.applies_to : a.applies_to;
-    await sql`update logged_actions set points = ${points}, note = ${data.note ?? a.note}, category = ${data.category ?? a.category}, attention_to_detail = ${detail}, direction = ${direction}, applies_to = ${applies_to}, updated_at = now() where id = ${a.id}`;
-    return { ok: true };
+    const applies_to =
+      direction === "self"
+        ? a.logged_by
+        : direction === "partner"
+          ? partner ?? a.applies_to
+          : a.applies_to;
+    const note = data.note !== undefined ? data.note : a.note;
+    const category = data.category !== undefined ? data.category : a.category;
+    const actionName =
+      data.action_name !== undefined
+        ? data.action_name.trim().slice(0, 80) || a.action_name
+        : a.action_name;
+    const photo =
+      data.photo_data === undefined
+        ? a.photo_data
+        : data.photo_data && data.photo_data.length < 700_000
+          ? data.photo_data
+          : null;
+
+    // Editing while held extends the free-edit window so you aren't racing the timer.
+    let heldUntil: string | null = a.held_until ?? null;
+    if (a.status === "held") {
+      heldUntil = new Date(Date.now() + HOLD_MS).toISOString();
+      await sql`update logged_actions set points = ${points}, note = ${note}, category = ${category}, attention_to_detail = ${detail}, direction = ${direction}, applies_to = ${applies_to}, action_name = ${actionName}, photo_data = ${photo}, held_until = ${heldUntil}::timestamptz, updated_at = now() where id = ${a.id}`;
+    } else {
+      await sql`update logged_actions set points = ${points}, note = ${note}, category = ${category}, attention_to_detail = ${detail}, direction = ${direction}, applies_to = ${applies_to}, action_name = ${actionName}, photo_data = ${photo}, updated_at = now() where id = ${a.id}`;
+    }
+    return { ok: true as const, held_until: heldUntil };
   });
 
 export const listHistory = createServerFn({ method: "GET" })
