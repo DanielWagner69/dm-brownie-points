@@ -28,8 +28,7 @@ export const Route = createFileRoute("/app/history")({
 function performerTag(
   a: LoggedAction,
   userId: string | undefined,
-): "me" | "them" | "both" {
-  if (a.direction === "both") return "both";
+): "me" | "them" {
   if (!userId) return "them";
   return a.applies_to === userId ? "me" : "them";
 }
@@ -40,7 +39,6 @@ function performerLabel(
   myName: string,
   partnerName: string,
 ): string {
-  if (a.direction === "both") return "Both of you";
   if (a.applies_to === userId) return myName;
   return partnerName;
 }
@@ -133,10 +131,6 @@ function HistoryPage() {
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--partner-them)]" />
             {partnerName}
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--partner-both)]" />
-            Both
-          </span>
         </div>
 
         <div className="space-y-2 pb-4">
@@ -176,7 +170,6 @@ function HistoryPage() {
                   "min-w-0 overflow-hidden rounded-3xl border border-border p-4 shadow-sm",
                   tag === "me" && "action-tag-me",
                   tag === "them" && "action-tag-them",
-                  tag === "both" && "action-tag-both",
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -360,16 +353,12 @@ function HistoryPage() {
                         const pts = window.prompt("Edit Brownie Points", String(a.points));
                         if (pts == null) return;
                         const dir = window.prompt(
-                          "Who is this about? (self / partner / both)",
+                          "Who is this about? (self / partner)",
                           a.direction,
                         );
                         if (dir == null) return;
                         const direction =
-                          dir.trim().toLowerCase() === "both"
-                            ? "both"
-                            : dir.trim().toLowerCase() === "partner"
-                              ? "partner"
-                              : "self";
+                          dir.trim().toLowerCase() === "partner" ? "partner" : "self";
                         try {
                           await editLoggedAction({
                             data: {
@@ -405,16 +394,16 @@ function HistoryPage() {
                         );
                         if (note == null) return;
                         const dir = window.prompt(
-                          "Who is this about? (self / partner / both)",
+                          "Who is this about? (self / partner)",
                           a.direction,
                         );
                         if (dir == null) return;
                         const direction =
-                          dir.trim().toLowerCase() === "both"
-                            ? "both"
-                            : dir.trim().toLowerCase() === "partner"
-                              ? "partner"
-                              : dir.trim().toLowerCase() === "self"
+                          dir.trim().toLowerCase() === "partner"
+                            ? "partner"
+                            : dir.trim().toLowerCase() === "self"
+                              ? "self"
+                              : a.direction === "both"
                                 ? "self"
                                 : a.direction;
                         try {
