@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Gift, History, Home, PawPrint, PlusCircle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useDashboard } from "@/lib/paws/hooks";
 import { tone } from "@/lib/paws/tone";
 
@@ -31,6 +31,11 @@ export function AppShell({
   const dash = useDashboard(true);
   const theme = dash.data?.profile.theme;
   const t = (s: string) => tone(s, theme);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [pathname]);
 
   return (
     <div className="paw-bg mx-auto flex h-dvh max-h-dvh w-full max-w-lg flex-col overflow-hidden">
@@ -57,7 +62,10 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-4">
+      <main
+        ref={mainRef}
+        className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-4"
+      >
         {children}
       </main>
 
