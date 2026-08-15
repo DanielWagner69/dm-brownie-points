@@ -6,7 +6,6 @@ import {
   HeartHandshake,
   PawPrint,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/paws/shell";
@@ -23,6 +22,8 @@ import {
 import { formatPoints } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { tone, toneActionName } from "@/lib/paws/tone";
+import { BADGE_CATALOG } from "@/lib/paws/defaults";
+import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/app/")({
   component: HomePage,
@@ -47,14 +48,6 @@ function HomePage() {
       subtitle={`${t("Soft notes with")} ${partnerLabel}`}
     >
       <div className="space-y-4">
-        <div className="flex justify-end">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/app/settings" hash="profile">
-              <UserRound className="h-4 w-4" />
-              {t("Edit profile")}
-            </Link>
-          </Button>
-        </div>
         <Card className="overflow-hidden">
           <CardContent className="relative p-5">
             <div className="flex items-end justify-between gap-3">
@@ -362,23 +355,7 @@ function HomePage() {
           </Card>
         ) : null}
 
-        {d.badges.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Award className="h-4 w-4 text-primary" />
-                {t("Soft badges")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {d.badges.map((b) => (
-                <Badge key={b.badge_key} variant="soft" className="px-3 py-1.5">
-                  {b.title}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
+        <BadgesPanel earned={d.badges} t={t} />
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -394,27 +371,17 @@ function HomePage() {
               </p>
             ) : (
               d.recent.slice(0, 6).map((a) => {
-                const tag =
-                  a.direction === "both"
-                    ? "both"
-                    : a.applies_to === user?.id
-                      ? "me"
-                      : "them";
+                const tag = a.applies_to === user?.id ? "me" : "them";
                 return (
                   <div
                     key={a.id}
                     className={`flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 ${
-                      tag === "me"
-                        ? "action-tag-me"
-                        : tag === "them"
-                          ? "action-tag-them"
-                          : "action-tag-both"
+                      tag === "me" ? "action-tag-me" : "action-tag-them"
                     }`}
                   >
                     <div className="min-w-0">
                       <p className="break-words text-sm font-medium leading-snug">
                         {toneActionName(a.action_name, a.kind, theme, a.id)}
-                        {a.direction === "both" ? " · both" : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {a.logger_name} · {a.status === "held" ? "sending soon" : a.status}
@@ -450,6 +417,115 @@ function HomePage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function BadgesPanel({
+  earned,
+  t,
+}: {
+  earned: { badge_key: string; title: string; description: string; earned_at: string }[];
+  t: (s: string) => string;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const earnedKeys = useMemo(() => new Set(earned.map((b) => b.badge_key)), [earned]);
+  const selectedDef = selected
+    ? BADGE_CATALOG.find((b) => b.key === selected)?.def
+    : null;
+  const selectedEarned = selected ? earned.find((b) => b.badge_key === selected) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Award className="h-4 w-4 text-primary" />
+          {t("Soft badges")}
+        </CardTitle>
+        <CardDescription>
+          Tap a badge for the story behind it. Love-language badges track accepted positives raised for you.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {earned.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No badges yet — keep logging kindness and they’ll start stacking.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {earned.map((b) => (
+              <button
+                key={b.badge_key}
+                type="button"
+                onClick={() => setSelected(b.badge_key === selected ? null : b.badge_key)}
+                className="rounded-full"
+              >
+                <Badge
+                  variant="soft"
+                  className={`px-3 py-1.5 ${selected === b.badge_key ? "ring-2 ring-primary" : ""}`}
+                >
+                  {b.title}
+                </Badge>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selected && selectedDef ? (
+          <div className="rounded-2xl border border-primary/30 bg-primary/10 px-3 py-3">
+            <p className="text-sm font-semibold">{selectedDef.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{selectedDef.description}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">How to earn:</span> {selectedDef.how}
+            </p>
+            {selectedEarned ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Earned {new Date(selectedEarned.earned_at).toLocaleDateString()}
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-muted-foreground">Not earned yet</p>
+            )}
+          </div>
+        ) : null}
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Hide full badge list" : `All badges (${BADGE_CATALOG.length})`}
+        </Button>
+
+        {showAll ? (
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {BADGE_CATALOG.map(({ key, def }) => {
+              const got = earnedKeys.has(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSelected(key === selected ? null : key)}
+                  className={`w-full rounded-2xl border px-3 py-2 text-left transition-colors ${
+                    got
+                      ? "border-primary/40 bg-primary/10"
+                      : "border-border bg-surface opacity-80"
+                  } ${selected === key ? "ring-2 ring-primary" : ""}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium leading-snug">{def.title}</p>
+                    <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {got ? "earned" : "locked"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{def.how}</p>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
