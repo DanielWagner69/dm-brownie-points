@@ -3,6 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { clampBasePoints } from "@/lib/utils";
 import type { ActionAppliesTo, ActionCategory, ActionType } from "../types";
+import { isLockedCategory } from "../defaults";
 import {
   getActiveCouple,
   partnerIdOf,
@@ -96,7 +97,6 @@ export const upsertActionType = createServerFn({ method: "POST" })
       base_points: number;
       category?: string;
       archive?: boolean;
-      /** Absolute to the couple: both | user_a | user_b */
       applies_to?: ActionAppliesTo;
     }) => d,
   )
@@ -169,8 +169,12 @@ export const upsertCategory = createServerFn({ method: "POST" })
         where id = ${data.id} and couple_id = ${c.id}`;
       const old = rows[0]?.name;
       if (!old) throw new Error("Group not found");
-      if (old.toLowerCase() === "general") {
-        throw new Error("“general” stays — it’s the fallback group");
+      if (isLockedCategory(old)) {
+        throw new Error(
+          old.toLowerCase() === "general"
+            ? "\u201cgeneral\u201d stays \u2014 it\u2019s the fallback group"
+            : `\u201c${old}\u201d is a love-language group and can\u2019t be removed (badges use it)`,
+        );
       }
       await sql`
         update action_types set category = 'general'
@@ -198,6 +202,13 @@ export const upsertCategory = createServerFn({ method: "POST" })
         where id = ${data.id} and couple_id = ${c.id}`;
       const old = rows[0]?.name;
       if (!old) throw new Error("Group not found");
+      if (isLockedCategory(old)) {
+        throw new Error(
+          old.toLowerCase() === "general"
+            ? "\u201cgeneral\u201d can\u2019t be renamed"
+            : `\u201c${old}\u201d is a love-language group and can\u2019t be renamed (badges use it)`,
+        );
+      }
       if (old.toLowerCase() === name.toLowerCase()) return { id: data.id };
       const clash = await sql<{ id: number }>`
         select id from action_categories
