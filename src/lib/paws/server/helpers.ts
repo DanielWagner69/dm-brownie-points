@@ -172,14 +172,11 @@ export async function syncDefaultActions(coupleId: string, userId: string) {
 
   for (const a of DEFAULT_ACTIONS) {
     if (haveActive.has(a.name)) {
-      // Do NOT overwrite category — couples own group names after rename.
-      // Only keep base_points / kind in sync for defaults.
       await sql`
         update action_types
         set base_points = ${a.base_points}, kind = ${a.kind}
         where couple_id = ${coupleId} and name = ${a.name} and is_default = true and archived = false`;
     } else if (haveAny.has(a.name)) {
-      // Intentionally archived — leave alone
       continue;
     } else {
       await sql`
@@ -196,8 +193,6 @@ export async function syncCategories(coupleId: string) {
     where couple_id = ${coupleId} and archived = false`;
   const have = new Set(existing.map((r) => r.name.trim().toLowerCase()));
 
-  // Seed starter groups only once (when the couple has none).
-  // After that, couples fully own their groups — rename/archive sticks.
   if (have.size === 0) {
     for (const name of ACTION_CATEGORIES) {
       try {
@@ -211,7 +206,6 @@ export async function syncCategories(coupleId: string) {
     }
   }
 
-  // Always ensure "general" exists as the undeletable fallback.
   if (!have.has("general")) {
     try {
       await sql`
@@ -223,7 +217,6 @@ export async function syncCategories(coupleId: string) {
     }
   }
 
-  // Pull in any category strings still used by live actions.
   const used = await sql<{ category: string }>`
     select distinct category from action_types
     where couple_id = ${coupleId} and archived = false`;
@@ -337,6 +330,18 @@ export async function evaluateBadges(userId: string, coupleId: string) {
     select count(*)::int as n from logged_actions
     where couple_id = ${coupleId} and applies_to = ${userId}
       and kind = 'positive' and status in ('accepted','modified')`;
+  const neg = await sql<{ n: number }>`
+    select count(*)::int as n from logged_actions
+    where couple_id = ${coupleId} and applies_to = ${userId}
+      and kind = 'negative' and status in ('accepted','modified')`;
+  const posPts = await sql<{ s: number }>`
+    select coalesce(sum(points), 0)::int as s from logged_actions
+    where couple_id = ${coupleId} and applies_to = ${userId}
+      and kind = 'positive' and status in ('accepted','modified')`;
+  const negPts = await sql<{ s: number }>`
+    select coalesce(sum(abs(points)), 0)::int as s from logged_actions
+    where couple_id = ${coupleId} and applies_to = ${userId}
+      and kind = 'negative' and status in ('accepted','modified')`;
   const reviews = await sql<{ n: number }>`
     select count(*)::int as n from logged_actions
     where couple_id = ${coupleId} and reviewed_by = ${userId}`;
@@ -345,13 +350,30 @@ export async function evaluateBadges(userId: string, coupleId: string) {
     join rewards r on r.id = rc.reward_id
     where rc.couple_id = ${coupleId} and rc.status in ('approved','completed')
       and r.name ilike '%passenger%'`;
+  const llRows = await sql<{ category: string; n: number }>`
+    select lower(coalesce(category, 'general')) as category, count(*)::int as n
+    from logged_actions
+    where couple_id = ${coupleId}
+      and applies_to = ${userId}
+      and kind = 'positive'
+      and status in ('accepted','modified')
+      and archived = false
+    group by lower(coalesce(category, 'general'))`;
+  const loveLangCounts: Record<string, number> = {};
+  for (const row of llRows) {
+    loveLangCounts[row.category] = row.n;
+  }
   const stats: BadgeStats = {
     streak: streakRows[0]?.current_streak ?? 0,
     detailCount: detail[0]?.n ?? 0,
     restCount: rest[0]?.n ?? 0,
     positiveAccepted: pos[0]?.n ?? 0,
+    negativeAccepted: neg[0]?.n ?? 0,
     reviewsDone: reviews[0]?.n ?? 0,
     passengerPrincessClaims: princess[0]?.n ?? 0,
+    lifetimePositivePoints: posPts[0]?.s ?? 0,
+    lifetimeNegativePoints: negPts[0]?.s ?? 0,
+    loveLangCounts,
   };
   for (const [key, def] of Object.entries(BADGE_DEFS)) {
     if (!def.check(stats)) continue;
