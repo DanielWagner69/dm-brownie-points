@@ -91,6 +91,7 @@ function LogPage() {
   const [retrospective, setRetrospective] = useState(false);
   const [occurredOn, setOccurredOn] = useState("");
   const [creating, setCreating] = useState(false);
+  const [openQuick, setOpenQuick] = useState(false);
   const [newName, setNewName] = useState("");
   const [newKind, setNewKind] = useState<"positive" | "negative">("positive");
   const [newCategory, setNewCategory] = useState("general");
@@ -389,6 +390,109 @@ function LogPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setOpenQuick((v) => !v)}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-base">Quick custom</CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {openQuick ? "Hide" : "Show"}
+              </span>
+            </div>
+            <CardDescription>
+              One-off or permanent. New actions inherit the current “who”.
+              {!openQuick ? (
+                <span className="mt-1 block text-primary">Tap to expand</span>
+              ) : null}
+            </CardDescription>
+          </CardHeader>
+          {openQuick ? (
+          <CardContent className="space-y-3">
+            <Input
+              placeholder='e.g. "Masha cooked a meal"'
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            {fuzzySuggestions.length > 0 && newName.trim() ? (
+              <div className="flex flex-wrap gap-1.5">
+                {fuzzySuggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs"
+                    onClick={() => {
+                      setSelected(s);
+                      setNewName("");
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={newKind === "positive" ? "default" : "outline"}
+                onClick={() => setNewKind("positive")}
+              >
+                Positive
+              </Button>
+              <Button
+                size="sm"
+                variant={newKind === "negative" ? "default" : "outline"}
+                onClick={() => setNewKind("negative")}
+              >
+                Negative
+              </Button>
+              <PointsInput
+                className="w-24"
+                value={newPts}
+                onValueChange={setNewPts}
+                allowNegative={false}
+              />
+              <select
+                className="rounded-xl border border-border bg-surface px-2 text-sm"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+              >
+                {availableCategories.length
+                  ? availableCategories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  : (
+                      <option value="general">general</option>
+                    )}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                variant="secondary"
+                disabled={!newName.trim() || creating}
+                onClick={() => void createAndSelect()}
+              >
+                <Plus className="h-4 w-4" />
+                {creating ? "Adding…" : "Create & select"}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!newName.trim() || creating}
+                onClick={() => void logOneOff()}
+              >
+                {creating ? "Logging…" : "Log as one-off"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              One-off logs the points once and does not add the action to your permanent library.
+            </p>
+          </CardContent>
+          ) : null}
+        </Card>
+
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant={kind === "all" ? "default" : "outline"} onClick={() => setKind("all")}>
             All
@@ -483,97 +587,6 @@ function LogPage() {
             </p>
           ) : null}
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Quick custom</CardTitle>
-            <CardDescription>
-              One-off or permanent. New actions inherit the current “who” so they show in the
-              filtered list.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Input
-              placeholder='e.g. "Masha cooked a meal"'
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            {fuzzySuggestions.length > 0 && newName.trim() ? (
-              <div className="flex flex-wrap gap-1.5">
-                {fuzzySuggestions.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs"
-                    onClick={() => {
-                      setSelected(s);
-                      setNewName("");
-                    }}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={newKind === "positive" ? "default" : "outline"}
-                onClick={() => setNewKind("positive")}
-              >
-                Positive
-              </Button>
-              <Button
-                size="sm"
-                variant={newKind === "negative" ? "default" : "outline"}
-                onClick={() => setNewKind("negative")}
-              >
-                Negative
-              </Button>
-              <PointsInput
-                className="w-24"
-                value={newPts}
-                onValueChange={setNewPts}
-                allowNegative={false}
-              />
-              <select
-                className="rounded-xl border border-border bg-surface px-2 text-sm"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-              >
-                {availableCategories.length
-                  ? availableCategories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))
-                  : (
-                      <option value="general">general</option>
-                    )}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button
-                variant="secondary"
-                disabled={!newName.trim() || creating}
-                onClick={() => void createAndSelect()}
-              >
-                <Plus className="h-4 w-4" />
-                {creating ? "Adding…" : "Create & select"}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!newName.trim() || creating}
-                onClick={() => void logOneOff()}
-              >
-                {creating ? "Logging…" : "Log as one-off"}
-              </Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              One-off logs the points once and does not add the action to your permanent library.
-            </p>
-          </CardContent>
-        </Card>
 
         {selected ? (
           <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-3 sm:items-center">
