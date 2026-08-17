@@ -73,6 +73,7 @@ import migration0005 from "../../migrations/0005_categories_push.sql?raw";
 import migration0006 from "../../migrations/0006_edit_mode.sql?raw";
 import migration0007 from "../../migrations/0007_direction_both.sql?raw";
 import migration0008 from "../../migrations/0008_action_applies_and_reply.sql?raw";
+import migration0009 from "../../migrations/0009_reward_link.sql?raw";
 
 function loadMigrationFiles(): { name: string; text: string }[] {
   return [
@@ -84,6 +85,7 @@ function loadMigrationFiles(): { name: string; text: string }[] {
     { name: "0006_edit_mode.sql", text: migration0006 },
     { name: "0007_direction_both.sql", text: migration0007 },
     { name: "0008_action_applies_and_reply.sql", text: migration0008 },
+    { name: "0009_reward_link.sql", text: migration0009 },
   ];
 }
 
