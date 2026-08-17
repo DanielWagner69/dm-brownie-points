@@ -367,19 +367,33 @@ function HistoryPage() {
                     size="sm"
                     variant="ghost"
                     onClick={async () => {
-                      const res = await requestDeleteAction({
-                        data: { entry_type: "action", entry_id: a.id },
-                      });
-                      toast.message(
-                        res.status === "approved"
-                          ? "Deleted (both agreed)"
-                          : "Delete requested — partner will see it on Nest home to agree",
-                      );
-                      invalidate();
+                      try {
+                        const res = await requestDeleteAction({
+                          data: { entry_type: "action", entry_id: a.id },
+                        });
+                        if (res.status === "deleted") {
+                          toast.success(
+                            a.status === "pending" || a.status === "held"
+                              ? "Withdrawn — no partner approval needed while still pending"
+                              : "Deleted",
+                          );
+                        } else if (res.status === "approved") {
+                          toast.success("Deleted (both agreed)");
+                        } else {
+                          toast.message(
+                            "Delete requested — partner will see it on Nest home to agree",
+                          );
+                        }
+                        invalidate();
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Could not delete");
+                      }
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete
+                    {a.status === "pending" || a.status === "held"
+                      ? "Withdraw"
+                      : "Delete"}
                   </Button>
                 </div>
               </article>
