@@ -129,6 +129,10 @@ export type Reward = {
   repeatable: boolean;
   kind: "gesture" | "wishlist";
   archived: boolean;
+  /** Product / listing URL (wishlist) */
+  link_url?: string | null;
+  /** Preview image from link (og:image) or manual */
+  image_url?: string | null;
   created_by_name?: string;
 };
 
