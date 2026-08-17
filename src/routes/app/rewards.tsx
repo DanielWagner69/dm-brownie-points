@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Gift, Pencil, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { ExternalLink, Gift, Pencil, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/paws/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ function RewardsPage() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [points, setPoints] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [repeatable, setRepeatable] = useState(true);
   const [editing, setEditing] = useState<Reward | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,7 @@ function RewardsPage() {
     setName("");
     setDesc("");
     setPoints("");
+    setLinkUrl("");
     setRepeatable(true);
     setEditing(null);
     setShowNew(false);
@@ -72,6 +74,7 @@ function RewardsPage() {
     setName(r.name);
     setDesc(r.description);
     setPoints(r.point_cost != null ? String(r.point_cost) : "");
+    setLinkUrl(r.link_url ?? "");
     setRepeatable(r.repeatable);
     setShowNew(true);
     setTab(r.kind === "wishlist" ? "wishlist" : "treats");
@@ -92,6 +95,7 @@ function RewardsPage() {
           kind,
           repeatable,
           point_cost: kind === "wishlist" ? pointNum : undefined,
+          link_url: kind === "wishlist" ? linkUrl.trim() || null : null,
         },
       });
       toast.success(t(editing ? "Updated softly" : tab === "treats" ? "Treat added" : "Wish added"));
@@ -188,7 +192,7 @@ function RewardsPage() {
             <>
               <strong className="text-foreground">Wishlist</strong> items (e.g. a vase) have buy Brownie Points
               you set. When your person buys it and you confirm,{" "}
-              <em>they earn those Brownie Points</em>.
+              <em>they earn those Brownie Points</em>. Add a product link so they can open the exact item.
             </>
           )}
         </p>
@@ -227,15 +231,31 @@ function RewardsPage() {
                   />
                 </div>
                 {tab === "wishlist" ? (
-                  <div className="space-y-2">
-                    <Label>Buy Brownie Points (they earn when they buy it)</Label>
-                    <Input
-                      type="number"
-                      value={points}
-                      onChange={(e) => setPoints(e.target.value)}
-                      placeholder="e.g. 10"
-                    />
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label>Link</Label>
+                      <Input
+                        type="url"
+                        inputMode="url"
+                        value={linkUrl}
+                        onChange={(e) => setLinkUrl(e.target.value)}
+                        placeholder="https://… product page"
+                        autoComplete="url"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Partner can open this to view the item. We’ll try to pull a thumbnail from the page.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Buy Brownie Points (they earn when they buy it)</Label>
+                      <Input
+                        type="number"
+                        value={points}
+                        onChange={(e) => setPoints(e.target.value)}
+                        placeholder="e.g. 10"
+                      />
+                    </div>
+                  </>
                 ) : null}
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -431,11 +451,50 @@ function RewardCard({
 }) {
   return (
     <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+      <div className="flex items-start gap-3">
+        {r.image_url ? (
+          <a
+            href={r.link_url || r.image_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 overflow-hidden rounded-2xl border border-border bg-muted"
+          >
+            <img
+              src={r.image_url}
+              alt=""
+              className="h-16 w-16 object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const wrap = e.currentTarget.parentElement;
+                if (wrap) wrap.style.display = "none";
+              }}
+            />
+          </a>
+        ) : null}
+        <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug">{r.name}</p>
           {r.description ? (
             <p className="mt-0.5 text-sm text-muted-foreground">{r.description}</p>
+          ) : null}
+          {r.link_url ? (
+            <a
+              href={r.link_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex max-w-full items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <ExternalLink className="h-3 w-3 shrink-0" />
+              <span className="truncate">
+                {(() => {
+                  try {
+                    return new URL(r.link_url!).hostname.replace(/^www\./, "");
+                  } catch {
+                    return "View item";
+                  }
+                })()}
+              </span>
+            </a>
           ) : null}
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant="outline">{tab === "treats" ? "Treat" : "Wishlist"}</Badge>
@@ -510,6 +569,14 @@ function RewardCard({
                 ? "No buy Brownie Points set yet"
                 : `They earn ${r.point_cost} Brownie Points if you buy this`}
             </Badge>
+            {r.link_url ? (
+              <Button size="sm" variant="outline" asChild>
+                <a href={r.link_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View item
+                </a>
+              </Button>
+            ) : null}
             <Button size="sm" variant="secondary" disabled={r.point_cost == null} onClick={onBuy}>
               {t("I bought this")}
             </Button>
