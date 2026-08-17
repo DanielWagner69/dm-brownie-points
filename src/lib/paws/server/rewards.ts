@@ -13,6 +13,68 @@ import {
 
 type Ctx = { userId: string };
 
+function normalizeHttpUrl(raw: string | null | undefined): string | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  try {
+    const withProto = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+    const u = new URL(withProto);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort Open Graph / Twitter image from a product page. */
+async function fetchLinkPreview(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; PawmiseBot/1.0; +https://pawmise.app)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(6_000),
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 200_000);
+    const patterns = [
+      /property=["']og:image:secure_url["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*property=["']og:image:secure_url["']/i,
+      /property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
+      /name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i,
+    ];
+    let image: string | null = null;
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m?.[1]) {
+        image = m[1].trim();
+        break;
+      }
+    }
+    if (!image) return null;
+    if (image.startsWith("//")) image = `https:${image}`;
+    else if (image.startsWith("/")) {
+      const base = new URL(url);
+      image = `${base.origin}${image}`;
+    } else if (!/^https?:\/\//i.test(image)) {
+      try {
+        image = new URL(image, url).toString();
+      } catch {
+        return null;
+      }
+    }
+    if (image.length > 2000) return null;
+    return image;
+  } catch {
+    return null;
+  }
+}
+
 export const listRewards = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -39,6 +101,8 @@ export const upsertReward = createServerFn({ method: "POST" })
       repeatable?: boolean;
       point_cost?: number | null;
       archive?: boolean;
+      /** Product / listing URL for wishlist items */
+      link_url?: string | null;
     }) => d,
   )
   .handler(async ({ context, data }) => {
@@ -69,13 +133,31 @@ export const upsertReward = createServerFn({ method: "POST" })
       }
 
       if (r.created_by === userId) {
+        const kind = data.kind ?? r.kind;
+        let linkUrl: string | null = r.link_url ?? null;
+        let imageUrl: string | null = r.image_url ?? null;
+        if (kind === "wishlist" && data.link_url !== undefined) {
+          linkUrl = normalizeHttpUrl(data.link_url);
+          if (linkUrl) {
+            if (linkUrl !== (r.link_url ?? null) || !imageUrl) {
+              imageUrl = await fetchLinkPreview(linkUrl);
+            }
+          } else {
+            imageUrl = null;
+          }
+        } else if (kind !== "wishlist") {
+          linkUrl = null;
+          imageUrl = null;
+        }
         await sql`
           update rewards set
             name = ${data.name},
             description = ${data.description ?? r.description},
-            kind = ${data.kind ?? r.kind},
+            kind = ${kind},
             repeatable = ${data.repeatable ?? r.repeatable},
-            archived = ${data.archive ?? false}
+            archived = ${data.archive ?? false},
+            link_url = ${linkUrl},
+            image_url = ${imageUrl}
           where id = ${r.id}`;
       } else if (data.archive) {
         throw new Error("Only the owner can remove this item");
@@ -90,12 +172,20 @@ export const upsertReward = createServerFn({ method: "POST" })
         : kind === "wishlist"
           ? (data.point_cost ?? null)
           : null;
+    let linkUrl: string | null = null;
+    let imageUrl: string | null = null;
+    if (kind === "wishlist") {
+      linkUrl = normalizeHttpUrl(data.link_url);
+      if (linkUrl) {
+        imageUrl = await fetchLinkPreview(linkUrl);
+      }
+    }
     await sql`
-      insert into rewards (id, couple_id, created_by, name, description, repeatable, kind, point_cost, cost_set_by)
+      insert into rewards (id, couple_id, created_by, name, description, repeatable, kind, point_cost, cost_set_by, link_url, image_url)
       values (
         ${rid}, ${c.id}, ${userId}, ${data.name}, ${data.description ?? ""},
         ${data.repeatable ?? true}, ${kind}, ${cost},
-        ${cost != null ? userId : null}
+        ${cost != null ? userId : null}, ${linkUrl}, ${imageUrl}
       )`;
     return { id: rid };
   });
